@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { account } from "@/lib/appwrite";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -40,6 +41,7 @@ export default function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [orderNumber, setOrderNumber] = useState("");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const [form, setForm] = useState<CheckoutForm>({
     firstName: "",
@@ -84,6 +86,35 @@ export default function CheckoutPage() {
     setLoaded(true);
   }, []);
 
+  // Load the signed-in customer's details when available.
+  useEffect(() => {
+    let active = true;
+
+    account
+      .get()
+      .then((user) => {
+        if (!active) return;
+
+        const nameParts = (user.name || "").trim().split(/\\s+/).filter(Boolean);
+
+        setForm((current) => ({
+          ...current,
+          firstName: current.firstName || nameParts[0] || "",
+          lastName: current.lastName || nameParts.slice(1).join(" "),
+          email: current.email || user.email || "",
+        }));
+
+        setIsAuthenticated(true);
+      })
+      .catch(() => {
+        if (active) setIsAuthenticated(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const subtotal = cart.reduce(
     (total, item) => total + item.price * item.quantity,
     0
@@ -112,11 +143,18 @@ export default function CheckoutPage() {
     setSubmitError("");
 
     try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      if (isAuthenticated) {
+        const jwt = await account.createJWT();
+        headers.Authorization = `Bearer ${jwt.jwt}`;
+      }
+
       const response = await fetch("/api/orders", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify({
           customer: form,
           paymentMethod,
@@ -156,7 +194,7 @@ export default function CheckoutPage() {
   if (!loaded) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-[#f8f7f4]">
-        <p className="text-xs uppercase tracking-widest text-gray-500">
+        <p className="text-xs uppercase tracking-widest text-black">
           Loading checkout...
         </p>
       </main>
@@ -173,13 +211,13 @@ export default function CheckoutPage() {
         </header>
 
         <section className="max-w-xl mx-auto px-6 py-28 text-center">
-          <ShoppingBag size={45} className="mx-auto mb-6 text-gray-400" />
+          <ShoppingBag size={45} className="mx-auto mb-6 text-black" />
 
           <h1 className="text-3xl font-semibold mb-3">
             Your cart is empty
           </h1>
 
-          <p className="text-gray-500 text-sm mb-8">
+          <p className="text-black text-sm mb-8">
             Add some products before proceeding to checkout.
           </p>
 
@@ -204,7 +242,7 @@ export default function CheckoutPage() {
             className="mx-auto mb-6"
           />
 
-          <p className="text-xs uppercase tracking-[0.25em] text-gray-500 mb-4">
+          <p className="text-xs uppercase tracking-[0.25em] text-black mb-4">
             Order received
           </p>
 
@@ -212,12 +250,12 @@ export default function CheckoutPage() {
             Thank you for your order
           </h1>
 
-          <p className="text-sm text-gray-500 leading-7 mb-4">
+          <p className="text-sm text-black leading-7 mb-4">
             Your order has been successfully created.
           </p>
 
           <div className="bg-[#f8f7f4] border border-black/10 p-5 mb-6">
-            <p className="text-xs uppercase tracking-widest text-gray-500 mb-2">
+            <p className="text-xs uppercase tracking-widest text-black mb-2">
               Order number
             </p>
             <p className="font-semibold text-lg break-all">
@@ -225,7 +263,7 @@ export default function CheckoutPage() {
             </p>
           </div>
 
-          <p className="text-sm text-gray-500 leading-7 mb-8">
+          <p className="text-sm text-black leading-7 mb-8">
             Your order is currently awaiting payment confirmation. No online
             payment has been collected yet.
           </p>
@@ -249,7 +287,7 @@ export default function CheckoutPage() {
             YOUR BRAND
           </Link>
 
-          <div className="flex items-center gap-2 text-xs text-gray-500">
+          <div className="flex items-center gap-2 text-xs text-black">
             <LockKeyhole size={14} />
             Secure Checkout
           </div>
@@ -259,14 +297,14 @@ export default function CheckoutPage() {
       <section className="max-w-7xl mx-auto px-5 md:px-10 py-12 md:py-16">
         <Link
           href="/cart"
-          className="inline-flex items-center gap-2 text-xs uppercase tracking-widest text-gray-500 hover:text-black mb-10"
+          className="inline-flex items-center gap-2 text-xs uppercase tracking-widest text-black hover:text-black mb-10"
         >
           <ArrowLeft size={15} />
           Back to Cart
         </Link>
 
         <div className="mb-12">
-          <p className="text-xs uppercase tracking-[0.25em] text-gray-500 mb-3">
+          <p className="text-xs uppercase tracking-[0.25em] text-black mb-3">
             Almost Yours
           </p>
 
@@ -500,7 +538,7 @@ export default function CheckoutPage() {
                           {method.title}
                         </p>
 
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-xs text-black mt-1">
                           {method.description}
                         </p>
                       </div>
@@ -527,11 +565,11 @@ export default function CheckoutPage() {
                         {item.name}
                       </p>
 
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-black mt-1">
                         {item.size} / {item.color}
                       </p>
 
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-black mt-1">
                         Quantity: {item.quantity}
                       </p>
                     </div>
@@ -545,12 +583,12 @@ export default function CheckoutPage() {
 
               <div className="border-t border-black/10 mt-7 pt-6 space-y-4">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Subtotal</span>
+                  <span className="text-black">Subtotal</span>
                   <span>${subtotal.toFixed(2)}</span>
                 </div>
 
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Shipping</span>
+                  <span className="text-black">Shipping</span>
 
                   <span>
                     {shipping === 0 ? "Free" : `$${shipping.toFixed(2)}`}
@@ -575,7 +613,7 @@ export default function CheckoutPage() {
                 {!isSubmitting && <ArrowRight size={16} />}
               </button>
 
-              <p className="text-xs text-gray-400 text-center mt-5 leading-6">
+              <p className="text-xs text-black text-center mt-5 leading-6">
                 Your order will be recorded. Online payment processing is
                 not yet connected.
               </p>
@@ -584,7 +622,7 @@ export default function CheckoutPage() {
         </form>
       </section>
 
-      <footer className="border-t border-black/10 py-8 text-center text-xs text-gray-400 tracking-widest">
+      <footer className="border-t border-black/10 py-8 text-center text-xs text-black tracking-widest">
         © 2026 YOUR BRAND. ALL RIGHTS RESERVED.
       </footer>
 

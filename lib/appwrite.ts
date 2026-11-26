@@ -1,4 +1,4 @@
-import { Client } from "appwrite";
+import { Account, Client } from "appwrite";
 
 const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
 const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
@@ -11,4 +11,6 @@ const client = new Client()
   .setEndpoint(endpoint)
   .setProject(projectId);
 
-export { client };
+const account = new Account(client);
+
+export { client, account };

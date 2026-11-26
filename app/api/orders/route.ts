@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { ID } from "node-appwrite";
-import { databaseId, tablesDB } from "@/lib/appwrite-admin";
 
+import { connection, NextRequest, NextResponse } from "next/server";
+import { Account, Client, ID } from "node-appwrite";
+import { databaseId, tablesDB } from "@/lib/appwrite-admin";
 
 type IncomingItem = {
   productId: string;
@@ -9,6 +9,12 @@ type IncomingItem = {
   color: string;
   quantity: number;
 };
+
+type AuthenticatedUser = {
+  $id: string;
+  name?: string;
+  email?: string;
+} | null;
 
 const paymentMethods = [
   "mobile-money",
@@ -23,10 +29,56 @@ function cleanString(value: unknown, maxLength = 255): string {
 }
 
 export async function POST(request: NextRequest) {
+  await connection();
+
   let transactionId: string | undefined;
 
   try {
     const body = await request.json();
+
+    // Verify an optional signed-in customer using their Appwrite JWT.
+    let authenticatedUser: AuthenticatedUser = null;
+
+    const authorization = request.headers.get("authorization");
+
+    if (authorization) {
+      const token = authorization.startsWith("Bearer ")
+        ? authorization.slice(7).trim()
+        : "";
+
+      if (!token) {
+        return NextResponse.json(
+          { error: "Invalid authentication token." },
+          { status: 401 }
+        );
+      }
+
+      const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
+      const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
+
+      if (!endpoint || !projectId) {
+        throw new Error(
+          "Appwrite authentication configuration is missing."
+        );
+      }
+
+      try {
+        const jwtClient = new Client()
+          .setEndpoint(endpoint)
+          .setProject(projectId)
+          .setJWT(token);
+
+        authenticatedUser = await new Account(jwtClient).get();
+      } catch {
+        return NextResponse.json(
+          {
+            error:
+              "Your session is invalid or expired. Please sign in again.",
+          },
+          { status: 401 }
+        );
+      }
+    }
 
     const customer = body.customer;
     const paymentMethod = cleanString(body.paymentMethod, 50);
@@ -40,7 +92,12 @@ export async function POST(request: NextRequest) {
 
     const firstName = cleanString(customer.firstName, 75);
     const lastName = cleanString(customer.lastName, 75);
-    const email = cleanString(customer.email, 254).toLowerCase();
+
+    // Use the verified Appwrite email for authenticated customers.
+    const email =
+      authenticatedUser?.email?.toLowerCase() ||
+      cleanString(customer.email, 254).toLowerCase();
+
     const phone = cleanString(customer.phone, 30);
     const address = cleanString(customer.address, 255);
     const city = cleanString(customer.city, 100);
@@ -57,7 +114,10 @@ export async function POST(request: NextRequest) {
       !country
     ) {
       return NextResponse.json(
-        { error: "Please complete all required customer and delivery fields." },
+        {
+          error:
+            "Please complete all required customer and delivery fields.",
+        },
         { status: 400 }
       );
     }
@@ -200,7 +260,8 @@ export async function POST(request: NextRequest) {
       }
 
       const unitPrice = Number(product.price);
-      const lineTotal = Math.round(unitPrice * item.quantity * 100) / 100;
+      const lineTotal =
+        Math.round(unitPrice * item.quantity * 100) / 100;
 
       subtotal += lineTotal;
 
@@ -221,8 +282,14 @@ export async function POST(request: NextRequest) {
     const shippingFee = subtotal >= 100 ? 0 : 5;
     const total = Math.round((subtotal + shippingFee) * 100) / 100;
 
-    const customerId = ID.unique();
+    // Registered customers use their verified Appwrite account ID.
+    // Guests receive a new customer ID.
+    const customerId = authenticatedUser
+      ? authenticatedUser.$id
+      : ID.unique();
+
     const orderId = ID.unique();
+
     const orderNumber = `VW-${Date.now()}-${ID.unique()
       .slice(0, 6)
       .toUpperCase()}`;
@@ -231,23 +298,70 @@ export async function POST(request: NextRequest) {
       ? `${address}, ${postalCode}`
       : address;
 
-    // Create a guest customer record.
-    await tablesDB.createRow({
-      databaseId,
-      tableId: "customers",
-      rowId: customerId,
-      permissions: [],
-      transactionId,
-      data: {
-        user_id: customerId,
-        full_name: `${firstName} ${lastName}`,
-        email,
-        phone,
-        address_line: deliveryAddress,
-        city,
-        country,
-      },
-    });
+    const customerData = {
+      user_id: customerId,
+      full_name: `${firstName} ${lastName}`,
+      email,
+      phone,
+      address_line: deliveryAddress,
+      city,
+      country,
+    };
+
+    // Create or update the customer record.
+    if (authenticatedUser) {
+      let customerExists = false;
+
+      try {
+        await tablesDB.getRow({
+          databaseId,
+          tableId: "customers",
+          rowId: customerId,
+          transactionId,
+        });
+
+        customerExists = true;
+      } catch (error) {
+        const isNotFound =
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          error.code === 404;
+
+        if (!isNotFound) {
+          throw error;
+        }
+      }
+
+      if (customerExists) {
+        await tablesDB.updateRow({
+          databaseId,
+          tableId: "customers",
+          rowId: customerId,
+          transactionId,
+          data: customerData,
+        });
+      } else {
+        await tablesDB.createRow({
+          databaseId,
+          tableId: "customers",
+          rowId: customerId,
+          permissions: [],
+          transactionId,
+          data: customerData,
+        });
+      }
+    } else {
+      // Guest checkout.
+      await tablesDB.createRow({
+        databaseId,
+        tableId: "customers",
+        rowId: customerId,
+        permissions: [],
+        transactionId,
+        data: customerData,
+      });
+    }
 
     // Create the order.
     await tablesDB.createRow({
@@ -341,14 +455,19 @@ export async function POST(request: NextRequest) {
           rollback: true,
         });
       } catch (rollbackError) {
-        console.error("Order transaction rollback failed:", rollbackError);
+        console.error(
+          "Order transaction rollback failed:",
+          rollbackError
+        );
       }
     }
 
     console.error("Order creation failed:", error);
 
     const message =
-      error instanceof Error ? error.message : "Unable to create your order.";
+      error instanceof Error
+        ? error.message
+        : "Unable to create your order.";
 
     const isClientError =
       message.includes("Insufficient stock") ||
@@ -356,7 +475,11 @@ export async function POST(request: NextRequest) {
       message.includes("Invalid price");
 
     return NextResponse.json(
-      { error: isClientError ? message : "Unable to create your order. Please try again." },
+      {
+        error: isClientError
+          ? message
+          : "Unable to create your order. Please try again.",
+      },
       { status: isClientError ? 409 : 500 }
     );
   }
