@@ -1,20 +1,10 @@
-
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  ShoppingBag,
-  Minus,
-  Plus,
-  Check,
-} from "lucide-react";
-import {
-  getProductById,
-  getCategories,
-  type StoreProduct,
-} from "@/lib/products";
+import { ShoppingBag, Minus, Plus, Check, ChevronRight, Truck, RotateCcw } from "lucide-react";
+import { getProductById, getCategories, type StoreProduct } from "@/lib/products";
 
 type CartItem = {
   productId: string;
@@ -26,9 +16,7 @@ type CartItem = {
   quantity: number;
 };
 
-type ProductDetailsProps = {
-  id: string;
-};
+type ProductDetailsProps = { id: string };
 
 const colorHex: Record<string, string> = {
   Black: "#171717",
@@ -43,9 +31,7 @@ const colorHex: Record<string, string> = {
   Brown: "#78350f",
 };
 
-export default function ProductDetails({
-  id,
-}: ProductDetailsProps) {
+export default function ProductDetails({ id }: ProductDetailsProps) {
   const [product, setProduct] = useState<StoreProduct | null>(null);
   const [category, setCategory] = useState("");
   const [loading, setLoading] = useState(true);
@@ -54,7 +40,9 @@ export default function ProductDetails({
   const [selectedSize, setSelectedSize] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [quantity, setQuantity] = useState(1);
+  const [activeImage, setActiveImage] = useState(0);
   const [added, setAdded] = useState(false);
+  const [cartError, setCartError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -64,11 +52,7 @@ export default function ProductDetails({
         setLoading(true);
         setError("");
 
-        const [productData, categoryData] = await Promise.all([
-          getProductById(id),
-          getCategories(),
-        ]);
-
+        const [productData, categoryData] = await Promise.all([getProductById(id), getCategories()]);
         if (cancelled) return;
 
         if (!productData) {
@@ -78,88 +62,61 @@ export default function ProductDetails({
 
         setProduct(productData);
 
-        const matchingCategory = categoryData.find(
-          (item) =>
-            item.$id === productData.category_id ||
-            item.slug === productData.category_id
-        );
+        const match = categoryData.find((c) => c.$id === productData.category_id || c.slug === productData.category_id);
+        setCategory(match?.name || productData.category_id);
 
-        setCategory(
-          matchingCategory?.name || productData.category_id
-        );
-
-        const availableSizes = productData.sizes || [];
-        const availableColors = productData.colors || [];
-
-        setSelectedSize(availableSizes[0] || "One Size");
-        setSelectedColor(availableColors[0] || "Default");
+        setSelectedSize(productData.sizes?.[0] || "One Size");
+        setSelectedColor(productData.colors?.[0] || "Default");
         setQuantity(1);
+        setActiveImage(0);
       } catch (err) {
         console.error("Unable to load product:", err);
-
-        if (!cancelled) {
-          setError("Unable to load this product. Please try again.");
-        }
+        if (!cancelled) setError("Unable to load this product. Please try again.");
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     }
 
     loadProduct();
-
     return () => {
       cancelled = true;
     };
   }, [id]);
 
-  const productImage =
-    product?.image_url ||
-    product?.images?.[0] ||
-    "";
+  const gallery = Array.from(
+    new Set([product?.image_url, ...(product?.images || [])].filter(Boolean) as string[])
+  );
+  const productImage = gallery[0] || "";
 
-  const availableSizes = product?.sizes?.length
-    ? product.sizes
-    : ["One Size"];
-
-  const availableColors = product?.colors?.length
-    ? product.colors
-    : ["Default"];
+  const availableSizes = product?.sizes?.length ? product.sizes : ["One Size"];
+  const availableColors = product?.colors?.length ? product.colors : ["Default"];
 
   const stock = product?.stock_quantity ?? 0;
   const maximumQuantity = Math.min(8, stock);
   const soldOut = stock <= 0;
+  const onSale = !!product?.compare_at_price && product.compare_at_price > product.price;
+  const discount = onSale ? Math.round((1 - product!.price / product!.compare_at_price!) * 100) : 0;
 
   function addToCart() {
     if (!product || soldOut) return;
+    setCartError("");
 
     try {
       const storedCart = localStorage.getItem("clothing-cart");
-
       const cart: CartItem[] = storedCart
-        ? JSON.parse(storedCart).map((item: CartItem) => ({
-            ...item,
-            productId: String(item.productId),
-          }))
+        ? JSON.parse(storedCart).map((item: CartItem) => ({ ...item, productId: String(item.productId) }))
         : [];
 
-      const existingItem = cart.find(
-        (item) =>
-          item.productId === product.$id &&
-          item.size === selectedSize &&
-          item.color === selectedColor
+      const existing = cart.find(
+        (item) => item.productId === product.$id && item.size === selectedSize && item.color === selectedColor
       );
 
-      if (existingItem) {
-        if (existingItem.quantity + quantity > maximumQuantity) {
-          alert(
-            `Only ${stock} items are currently available in stock.`
-          );
+      if (existing) {
+        if (existing.quantity + quantity > maximumQuantity) {
+          setCartError(`Only ${stock} in stock, and you already have ${existing.quantity} in your cart.`);
           return;
         }
-
-        existingItem.quantity += quantity;
+        existing.quantity += quantity;
       } else {
         cart.push({
           productId: product.$id,
@@ -172,48 +129,42 @@ export default function ProductDetails({
         });
       }
 
-      localStorage.setItem(
-        "clothing-cart",
-        JSON.stringify(cart)
-      );
-
+      localStorage.setItem("clothing-cart", JSON.stringify(cart));
       setAdded(true);
-
-      window.setTimeout(() => {
-        setAdded(false);
-      }, 2500);
+      window.setTimeout(() => setAdded(false), 2500);
     } catch (err) {
       console.error("Unable to update cart:", err);
-      alert("Unable to update your cart. Please try again.");
+      setCartError("Unable to update your cart. Please try again.");
     }
   }
 
+  /* ---------- loading ---------- */
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center">
-        <p className="text-xs font-bold tracking-[0.2em]">
-          LOADING PRODUCT...
-        </p>
+      <main className="min-h-screen bg-slate-50">
+        <div className="mx-auto grid max-w-6xl animate-pulse gap-10 px-5 py-12 md:grid-cols-2 md:gap-16 md:px-10">
+          <div className="aspect-[4/5] rounded-3xl bg-slate-200" />
+          <div className="space-y-5 py-6">
+            <div className="h-3 w-24 rounded bg-slate-200" />
+            <div className="h-10 w-3/4 rounded bg-slate-200" />
+            <div className="h-6 w-28 rounded bg-slate-200" />
+            <div className="h-24 w-full rounded bg-slate-200" />
+            <div className="h-14 w-full rounded-full bg-slate-200" />
+          </div>
+        </div>
       </main>
     );
   }
 
+  /* ---------- error / not found ---------- */
   if (error || !product) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center px-5 text-center">
-        <h1 className="text-3xl font-black">
-          {error ? "SOMETHING WENT WRONG" : "PRODUCT NOT FOUND"}
-        </h1>
-
-        <p className="mt-3 text-sm text-gray-500">
-          {error ||
-            "The product you are looking for does not exist or is unavailable."}
+      <main className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-5 text-center">
+        <h1 className="text-3xl font-black text-[#07152e]">{error ? "Something went wrong" : "Product not found"}</h1>
+        <p className="mt-3 max-w-sm text-sm text-slate-500">
+          {error || "The product you are looking for does not exist or is unavailable."}
         </p>
-
-        <Link
-          href="/shop"
-          className="mt-7 bg-black px-7 py-4 text-xs font-bold tracking-widest text-white"
-        >
+        <Link href="/shop" className="mt-7 rounded-full bg-[#07152e] px-8 py-4 text-xs font-bold tracking-widest text-white transition hover:bg-blue-700">
           BACK TO SHOP
         </Link>
       </main>
@@ -221,291 +172,228 @@ export default function ProductDetails({
   }
 
   return (
-    <main className="min-h-screen bg-white text-black">
+    <main className="min-h-screen bg-slate-50 text-slate-900">
+      <section className="mx-auto max-w-6xl px-5 py-8 md:px-10 md:py-12">
+        {/* breadcrumb */}
+        <nav aria-label="Breadcrumb" className="mb-8 flex items-center gap-1.5 text-xs text-slate-500">
+          <Link href="/shop" className="transition hover:text-blue-700">Shop</Link>
+          <ChevronRight size={13} />
+          <span>{category}</span>
+          <ChevronRight size={13} />
+          <span className="truncate font-semibold text-[#07152e]">{product.name}</span>
+        </nav>
 
-      {/* Announcement */}
-      <div className="bg-black px-4 py-3 text-center text-xs tracking-[0.15em] text-white">
-        FREE SHIPPING ON ORDERS OVER $100
-      </div>
+        <div className="grid gap-10 md:grid-cols-2 md:gap-16">
+          {/* ===== images ===== */}
+          <div className="md:sticky md:top-8 md:self-start">
+            <div className="group relative aspect-[4/5] overflow-hidden rounded-3xl bg-slate-100 ring-1 ring-black/5">
+              {gallery.length ? (
+                <img
+                  key={activeImage}
+                  src={gallery[activeImage]}
+                  alt={product.name}
+                  className="h-full w-full animate-[fadeIn_.5s_ease] object-cover transition duration-700 group-hover:scale-105"
+                />
+              ) : (
+                <div className="grid h-full place-items-center text-sm text-slate-400">No product image available</div>
+              )}
 
-      {/* Navigation */}
-      <header className="border-b border-gray-100">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 md:px-10">
-
-          <Link
-            href="/shop"
-            className="flex items-center gap-2 text-xs font-bold tracking-widest"
-          >
-            <ArrowLeft size={16} />
-            BACK TO SHOP
-          </Link>
-
-          <Link
-            href="/"
-            className="text-2xl font-black tracking-tight"
-          >
-            CLOTHING.
-          </Link>
-
-          <Link href="/cart" aria-label="Shopping cart">
-            <ShoppingBag size={22} />
-          </Link>
-
-        </div>
-      </header>
-
-      {/* Product Details */}
-      <section className="mx-auto grid max-w-7xl gap-10 px-5 py-10 md:grid-cols-2 md:gap-16 md:px-10 md:py-16">
-
-        {/* Product Image */}
-        <div className="relative overflow-hidden bg-gray-100">
-          {productImage ? (
-            <img
-              src={productImage}
-              alt={product.name}
-              className="h-[480px] w-full object-cover md:h-[720px]"
-            />
-          ) : (
-            <div className="flex h-[480px] items-center justify-center text-sm text-gray-400 md:h-[720px]">
-              No product image available
+              <div className="absolute left-4 top-4 flex gap-2">
+                {product.tag && (
+                  <span className="rounded-full bg-white px-3.5 py-2 text-[10px] font-bold tracking-widest shadow-sm">{product.tag}</span>
+                )}
+                {onSale && (
+                  <span className="rounded-full bg-red-600 px-3.5 py-2 text-[10px] font-bold tracking-widest text-white shadow-sm">-{discount}%</span>
+                )}
+              </div>
             </div>
-          )}
 
-          {product.tag && (
-            <span className="absolute left-5 top-5 bg-white px-4 py-3 text-[10px] font-bold tracking-widest">
-              {product.tag}
-            </span>
-          )}
-        </div>
-
-        {/* Product Information */}
-        <div className="flex flex-col justify-center">
-
-          <p className="text-xs font-medium tracking-[0.25em] text-gray-500">
-            {category.toUpperCase()}
-          </p>
-
-          <h1 className="mt-4 text-4xl font-black tracking-tight md:text-6xl">
-            {product.name}
-          </h1>
-
-          <p className="mt-5 text-2xl font-bold">
-            ${product.price.toFixed(2)}
-          </p>
-
-          {product.compare_at_price &&
-            product.compare_at_price > product.price && (
-              <p className="mt-1 text-sm text-gray-400 line-through">
-                ${product.compare_at_price.toFixed(2)}
-              </p>
+            {gallery.length > 1 && (
+              <div className="mt-3 grid grid-cols-5 gap-3">
+                {gallery.slice(0, 5).map((src, i) => (
+                  <button
+                    key={src}
+                    onClick={() => setActiveImage(i)}
+                    aria-label={`View image ${i + 1}`}
+                    aria-pressed={activeImage === i}
+                    className={`aspect-square overflow-hidden rounded-xl ring-2 transition ${
+                      activeImage === i ? "ring-[#07152e]" : "opacity-70 ring-transparent hover:opacity-100"
+                    }`}
+                  >
+                    <img src={src} alt="" className="h-full w-full object-cover" />
+                  </button>
+                ))}
+              </div>
             )}
+          </div>
 
-          <div className="my-8 border-t border-gray-200" />
+          {/* ===== info ===== */}
+          <div className="flex flex-col">
+            <p className="text-xs font-semibold tracking-[0.25em] text-blue-700">{category.toUpperCase()}</p>
 
-          <p className="text-sm leading-8 text-gray-600">
-            {product.description}
-          </p>
+            <h1 className="mt-3 text-4xl font-black tracking-tight text-[#07152e] md:text-5xl">{product.name}</h1>
 
-          {/* Colour Selection */}
-          <div className="mt-9">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-xs font-bold tracking-widest">
-                COLOUR
-              </p>
-
-              <p className="text-xs text-gray-500">
-                {selectedColor}
-              </p>
+            <div className="mt-5 flex items-baseline gap-3">
+              <p className="text-3xl font-black text-[#07152e]">${product.price.toFixed(2)}</p>
+              {onSale && <p className="text-base text-slate-400 line-through">${product.compare_at_price!.toFixed(2)}</p>}
             </div>
 
-            <div className="flex flex-wrap gap-3">
-              {availableColors.map((color) => (
+            {product.description && <p className="mt-6 text-sm leading-7 text-slate-600">{product.description}</p>}
+
+            {/* colour */}
+            <div className="mt-8">
+              <p className="mb-3 text-xs font-bold tracking-widest">
+                COLOUR <span className="ml-2 font-medium tracking-normal text-slate-500">{selectedColor}</span>
+              </p>
+              <div className="flex flex-wrap gap-2.5">
+                {availableColors.map((color) => {
+                  const on = selectedColor === color;
+                  return (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setSelectedColor(color)}
+                      aria-label={`Select ${color}`}
+                      aria-pressed={on}
+                      className={`flex items-center gap-2 rounded-full border px-4 py-2.5 text-xs font-medium transition ${
+                        on ? "border-[#07152e] bg-white shadow-sm" : "border-slate-200 bg-white hover:border-slate-400"
+                      }`}
+                    >
+                      <span className="h-4 w-4 rounded-full border border-slate-300" style={{ backgroundColor: colorHex[color] || "#d1d5db" }} />
+                      {color}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* size */}
+            <div className="mt-8">
+              <p className="mb-3 text-xs font-bold tracking-widest">SIZE</p>
+              <div className="flex flex-wrap gap-2.5">
+                {availableSizes.map((size) => {
+                  const on = selectedSize === size;
+                  return (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => setSelectedSize(size)}
+                      aria-pressed={on}
+                      className={`min-w-[3.5rem] rounded-xl border px-4 py-3.5 text-xs font-bold transition ${
+                        on ? "border-[#07152e] bg-[#07152e] text-white" : "border-slate-200 bg-white hover:border-slate-400"
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* quantity + stock */}
+            <div className="mt-8 flex flex-wrap items-center gap-5">
+              <div className="flex items-center rounded-full border border-slate-200 bg-white">
                 <button
-                  key={color}
                   type="button"
-                  onClick={() => setSelectedColor(color)}
-                  aria-label={`Select ${color}`}
-                  aria-pressed={selectedColor === color}
-                  className={`flex items-center gap-2 border px-4 py-3 text-xs ${
-                    selectedColor === color
-                      ? "border-black"
-                      : "border-gray-200 hover:border-black"
-                  }`}
+                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  disabled={quantity <= 1 || soldOut}
+                  aria-label="Decrease quantity"
+                  className="px-5 py-4 transition hover:text-blue-700 disabled:opacity-30"
                 >
-                  <span
-                    className="h-4 w-4 rounded-full border border-gray-300"
-                    style={{
-                      backgroundColor:
-                        colorHex[color] || "#d1d5db",
-                    }}
-                  />
-                  {color}
+                  <Minus size={14} />
                 </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Size Selection */}
-          <div className="mt-9">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-xs font-bold tracking-widest">
-                SELECT SIZE
-              </p>
-
-              <span className="text-xs text-gray-500">
-                Size guide coming soon
-              </span>
-            </div>
-
-            <div className="grid grid-cols-6 gap-2">
-              {availableSizes.map((size) => (
+                <span className="min-w-8 text-center text-sm font-semibold tabular-nums" aria-live="polite">{quantity}</span>
                 <button
-                  key={size}
                   type="button"
-                  onClick={() => setSelectedSize(size)}
-                  aria-pressed={selectedSize === size}
-                  className={`border py-4 text-xs font-bold ${
-                    selectedSize === size
-                      ? "border-black bg-black text-white"
-                      : "border-gray-200 hover:border-black"
-                  }`}
+                  onClick={() => setQuantity(Math.min(maximumQuantity, quantity + 1))}
+                  disabled={quantity >= maximumQuantity || soldOut}
+                  aria-label="Increase quantity"
+                  className="px-5 py-4 transition hover:text-blue-700 disabled:opacity-30"
                 >
-                  {size}
+                  <Plus size={14} />
                 </button>
-              ))}
-            </div>
-          </div>
+              </div>
 
-          {/* Stock */}
-          <p className="mt-6 text-xs text-gray-500">
-            {soldOut
-              ? "OUT OF STOCK"
-              : `${stock} items available`}
-          </p>
-
-          {/* Quantity */}
-          <div className="mt-5">
-            <p className="mb-4 text-xs font-bold tracking-widest">
-              QUANTITY
-            </p>
-
-            <div className="flex w-fit items-center border border-gray-200">
-
-              <button
-                type="button"
-                onClick={() =>
-                  setQuantity(Math.max(1, quantity - 1))
-                }
-                disabled={quantity <= 1 || soldOut}
-                className="px-5 py-4 disabled:opacity-30"
-                aria-label="Decrease quantity"
-              >
-                <Minus size={14} />
-              </button>
-
-              <span className="min-w-10 text-center text-sm">
-                {quantity}
-              </span>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setQuantity(
-                    Math.min(maximumQuantity, quantity + 1)
-                  )
-                }
-                disabled={quantity >= maximumQuantity || soldOut}
-                className="px-5 py-4 disabled:opacity-30"
-                aria-label="Increase quantity"
-              >
-                <Plus size={14} />
-              </button>
-
+              <p className={`text-xs font-medium ${soldOut ? "text-red-600" : stock <= 5 ? "text-amber-600" : "text-emerald-600"}`}>
+                {soldOut ? "Out of stock" : stock <= 5 ? `Only ${stock} left` : "In stock"}
+              </p>
             </div>
 
-            <p className="mt-2 text-[10px] text-gray-400">
-              Maximum 8 items per selection.
-            </p>
-          </div>
-
-          {/* Add to Cart */}
-          <button
-            type="button"
-            onClick={addToCart}
-            disabled={soldOut}
-            className={`mt-9 flex w-full items-center justify-center gap-3 py-5 text-xs font-bold tracking-[0.2em] transition ${
-              soldOut
-                ? "cursor-not-allowed bg-gray-300 text-gray-600"
-                : added
-                  ? "bg-green-700 text-white"
-                  : "bg-black text-white hover:bg-gray-800"
-            }`}
-          >
-            {soldOut ? (
-              "SOLD OUT"
-            ) : added ? (
-              <>
-                <Check size={18} />
-                ADDED TO CART
-              </>
-            ) : (
-              <>
-                <ShoppingBag size={18} />
-                ADD TO CART — ${(product.price * quantity).toFixed(2)}
-              </>
-            )}
-          </button>
-
-          {added && (
-            <Link
-              href="/cart"
-              className="mt-4 text-center text-xs font-bold tracking-widest underline"
+            {/* add to cart */}
+            <button
+              type="button"
+              onClick={addToCart}
+              disabled={soldOut}
+              className={`mt-8 flex w-full items-center justify-center gap-3 rounded-full py-5 text-xs font-bold tracking-[0.2em] transition duration-300 ${
+                soldOut
+                  ? "cursor-not-allowed bg-slate-300 text-slate-600"
+                  : added
+                    ? "bg-emerald-600 text-white"
+                    : "bg-[#07152e] text-white shadow-xl shadow-blue-950/20 hover:-translate-y-0.5 hover:bg-blue-700"
+              }`}
             >
-              VIEW YOUR CART
-            </Link>
-          )}
+              {soldOut ? (
+                "SOLD OUT"
+              ) : added ? (
+                <>
+                  <Check size={18} /> ADDED TO CART
+                </>
+              ) : (
+                <>
+                  <ShoppingBag size={18} /> ADD TO CART · ${(product.price * quantity).toFixed(2)}
+                </>
+              )}
+            </button>
 
-          {/* Product Information */}
-          <div className="mt-8 border-t border-gray-200 pt-6">
-
-            <div className="flex justify-between py-3 text-xs">
-              <span className="text-gray-500">PRODUCT</span>
-              <span>CLOTHING. COLLECTION</span>
+            <div aria-live="polite" className="min-h-[1.5rem]">
+              {cartError && <p className="mt-3 text-center text-xs font-medium text-red-600">{cartError}</p>}
+              {added && (
+                <Link href="/cart" className="mt-3 flex items-center justify-center gap-1 text-xs font-bold tracking-widest text-blue-700 hover:underline">
+                  VIEW YOUR CART <ChevronRight size={14} />
+                </Link>
+              )}
             </div>
 
-            <div className="flex justify-between border-t border-gray-100 py-3 text-xs">
-              <span className="text-gray-500">DELIVERY</span>
-              <span>Calculated at checkout</span>
+            {/* info */}
+            <div className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-5 text-sm">
+              <div className="flex items-start gap-3">
+                <Truck size={18} className="mt-0.5 shrink-0 text-blue-700" />
+                <div>
+                  <p className="font-semibold">Delivery</p>
+                  <p className="text-xs text-slate-500">Calculated at checkout</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 border-t border-slate-100 pt-4">
+                <RotateCcw size={18} className="mt-0.5 shrink-0 text-blue-700" />
+                <div>
+                  <p className="font-semibold">Returns</p>
+                  <p className="text-xs text-slate-500">Return policy applies</p>
+                </div>
+              </div>
             </div>
-
-            <div className="flex justify-between border-t border-gray-100 py-3 text-xs">
-              <span className="text-gray-500">RETURNS</span>
-              <span>Return policy applies</span>
-            </div>
-
           </div>
-
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-black px-5 py-10 text-white md:px-10">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 md:flex-row md:items-center md:justify-between">
+      {/* mobile sticky buy bar */}
+      {!soldOut && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/90 p-3 backdrop-blur-xl md:hidden">
+          <button onClick={addToCart} className="flex w-full items-center justify-center gap-2 rounded-full bg-[#07152e] py-4 text-xs font-bold tracking-[0.15em] text-white">
+            {added ? <><Check size={16} /> ADDED</> : <>ADD TO CART · ${(product.price * quantity).toFixed(2)}</>}
+          </button>
+        </div>
+      )}
 
-          <Link
-            href="/"
-            className="text-2xl font-black tracking-tight"
-          >
-            CLOTHING.
+      <footer className="bg-[#07152e] px-5 py-10 pb-24 text-white md:px-10 md:pb-10">
+        <div className="mx-auto flex max-w-6xl flex-col gap-5 md:flex-row md:items-center md:justify-between">
+          <Link href="/" className="text-2xl font-black tracking-tight">
+            VICWAV<span className="text-cyan-400">.</span>
           </Link>
-
-          <p className="text-xs text-gray-500">
-            © 2026 CLOTHING. All rights reserved.
-          </p>
-
+          <p className="text-xs text-slate-400">© 2026 VICWAV. All rights reserved.</p>
         </div>
       </footer>
 
+      <style dangerouslySetInnerHTML={{ __html: `@keyframes fadeIn{from{opacity:0}to{opacity:1}}a:focus-visible,button:focus-visible{outline:2px solid #22d3ee;outline-offset:3px}@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}` }} />
     </main>
   );
 }

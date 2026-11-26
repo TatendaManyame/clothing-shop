@@ -1,9 +1,21 @@
+
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  CheckCircle2,
+  Clock,
+  Loader,
+  Package,
+  RefreshCw,
+  Wallet,
+} from "lucide-react";
 import { account } from "@/lib/appwrite";
+import AdminShell, { StatusBadge } from "../../components/AdminShell";
 
 type RecentOrder = {
   id: string;
@@ -27,15 +39,6 @@ type DashboardData = {
   recentOrders: RecentOrder[];
 };
 
-const statusStyles: Record<string, string> = {
-  pending: "bg-amber-100 text-amber-800",
-  confirmed: "bg-blue-100 text-blue-800",
-  processing: "bg-indigo-100 text-indigo-800",
-  shipped: "bg-purple-100 text-purple-800",
-  delivered: "bg-green-100 text-green-800",
-  cancelled: "bg-red-100 text-red-800",
-};
-
 function formatMoney(amount: number, currency: string) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -50,16 +53,36 @@ function formatDate(value: string) {
 
   if (Number.isNaN(date.getTime())) return "—";
 
-  return date.toLocaleString();
+  return date.toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default function AdminDashboardPage() {
   const router = useRouter();
 
+  const [greetingText, setGreetingText] = useState("Welcome");
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+
+  useEffect(() => {
+    const h = new Date().getHours();
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setGreetingText(
+      h < 12
+        ? "Good morning"
+        : h < 18
+          ? "Good afternoon"
+          : "Good evening"
+    );
+  }, []);
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -86,9 +109,12 @@ export default function AdminDashboardPage() {
       }
 
       setData(result);
+      setUpdatedAt(new Date());
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Unable to load dashboard."
+        err instanceof Error
+          ? err.message
+          : "Unable to load dashboard."
       );
     } finally {
       setLoading(false);
@@ -125,140 +151,306 @@ export default function AdminDashboardPage() {
     await loadDashboard();
   }
 
-  const metrics = data?.metrics;
+  const m = data?.metrics;
+
+  const total = m?.totalOrders ?? 0;
+
+  const other = Math.max(
+    0,
+    total -
+      (m?.pendingOrders ?? 0) -
+      (m?.processingOrders ?? 0) -
+      (m?.completedOrders ?? 0)
+  );
 
   const metricCards = [
     {
       label: "Total orders",
-      value: metrics?.totalOrders ?? 0,
+      value: total,
       description: "All orders received",
+      icon: Package,
+      tone: "from-[#07152e] to-[#0a2a8f] text-white",
+      sub: "text-blue-200",
+      iconBox: "bg-white/15 text-cyan-300",
     },
     {
-      label: "Pending orders",
-      value: metrics?.pendingOrders ?? 0,
+      label: "Pending",
+      value: m?.pendingOrders ?? 0,
       description: "Awaiting action",
+      icon: Clock,
+      tone: "bg-white",
+      sub: "text-slate-500",
+      iconBox: "bg-amber-100 text-amber-700",
     },
     {
-      label: "Processing orders",
-      value: metrics?.processingOrders ?? 0,
+      label: "Processing",
+      value: m?.processingOrders ?? 0,
       description: "Currently being fulfilled",
+      icon: Loader,
+      tone: "bg-white",
+      sub: "text-slate-500",
+      iconBox: "bg-indigo-100 text-indigo-700",
     },
     {
-      label: "Completed orders",
-      value: metrics?.completedOrders ?? 0,
+      label: "Completed",
+      value: m?.completedOrders ?? 0,
       description: "Successfully delivered",
+      icon: CheckCircle2,
+      tone: "bg-white",
+      sub: "text-slate-500",
+      iconBox: "bg-emerald-100 text-emerald-700",
+    },
+  ];
+
+  const segments = [
+    {
+      label: "Pending",
+      value: m?.pendingOrders ?? 0,
+      cls: "bg-amber-400",
+    },
+    {
+      label: "Processing",
+      value: m?.processingOrders ?? 0,
+      cls: "bg-indigo-500",
+    },
+    {
+      label: "Completed",
+      value: m?.completedOrders ?? 0,
+      cls: "bg-emerald-500",
+    },
+    {
+      label: "Other",
+      value: other,
+      cls: "bg-slate-300",
     },
   ];
 
   return (
-    <main className="min-h-screen bg-neutral-50 text-neutral-900">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <header className="mb-10 flex flex-wrap items-center justify-between gap-4 border-b border-neutral-200 pb-6">
-          <div>
-            <Link href="/" className="text-2xl font-black tracking-[0.2em]">
-              VICWAV
-            </Link>
-            <p className="mt-1 text-xs font-semibold tracking-[0.2em] text-neutral-500">
-              ADMINISTRATION
-            </p>
-          </div>
+    <AdminShell>
+      {/* Heading */}
+      <div className="adm-in mb-8 flex flex-wrap items-end justify-between gap-5">
+        <div>
+          <p className="mb-2 text-xs font-bold tracking-[0.25em] text-blue-700">
+            STORE MANAGEMENT
+          </p>
 
-          <nav className="flex items-center gap-5 text-sm font-semibold">
-            <Link href="/account" className="hover:text-neutral-500">
-              MY ACCOUNT
-            </Link>
-            <Link href="/shop" className="hover:text-neutral-500">
-              SHOP
-            </Link>
-          </nav>
-        </header>
+          <h1 className="text-3xl font-black tracking-tight md:text-4xl">
+            {greetingText}.
+          </h1>
 
-        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="mb-2 text-xs font-bold tracking-[0.2em] text-neutral-500">
-              STORE MANAGEMENT
-            </p>
-            <h1 className="text-3xl font-black tracking-tight">
-              Dashboard overview
-            </h1>
-            <p className="mt-2 text-sm text-neutral-600">
-              Monitor orders, revenue and store activity.
-            </p>
-          </div>
-
-          <div className="flex gap-3">
-            <button
-              onClick={handleRefresh}
-              disabled={loading || refreshing}
-              className="rounded-lg border border-neutral-300 bg-white px-4 py-3 text-sm font-semibold hover:bg-neutral-100 disabled:opacity-50"
-            >
-              {refreshing ? "Refreshing..." : "Refresh"}
-            </button>
-
-            <Link
-              href="/admin/orders"
-              className="rounded-lg bg-black px-5 py-3 text-sm font-semibold text-white hover:bg-neutral-800"
-            >
-              Manage orders
-            </Link>
-          </div>
+          <p className="mt-2 text-sm text-slate-500">
+            Here&apos;s what&apos;s happening in your store
+            {updatedAt && (
+              <span className="text-slate-400">
+                {" "}
+                · updated{" "}
+                {updatedAt.toLocaleTimeString("en-GB", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+            )}
+          </p>
         </div>
 
-        {error && (
-          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+        <div className="flex gap-3">
+          <button
+            onClick={handleRefresh}
+            disabled={loading || refreshing}
+            className="flex items-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-3 text-xs font-bold tracking-widest transition hover:border-blue-500 hover:text-blue-700 disabled:opacity-50"
+          >
+            <RefreshCw
+              size={14}
+              className={refreshing ? "animate-spin" : ""}
+            />
+            {refreshing ? "REFRESHING" : "REFRESH"}
+          </button>
 
-        {loading ? (
-          <div className="rounded-xl border border-neutral-200 bg-white p-10 text-center text-sm text-neutral-500">
-            Loading dashboard...
+          <Link
+            href="/admin/orders"
+            className="flex items-center gap-2 rounded-full bg-[#07152e] px-6 py-3 text-xs font-bold tracking-widest text-white shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-blue-700"
+          >
+            MANAGE ORDERS
+            <ArrowRight size={14} />
+          </Link>
+        </div>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div
+          role="alert"
+          className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700"
+        >
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="animate-pulse space-y-6">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-40 rounded-3xl bg-slate-200"
+              />
+            ))}
           </div>
-        ) : (
-          <>
-            <section className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {metricCards.map((card) => (
+
+          <div className="h-40 rounded-3xl bg-slate-200" />
+          <div className="h-72 rounded-3xl bg-slate-200" />
+        </div>
+      ) : (
+        <>
+          {/* Metrics */}
+          <section className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {metricCards.map(
+              (
+                {
+                  label,
+                  value,
+                  description,
+                  icon: Icon,
+                  tone,
+                  sub,
+                  iconBox,
+                },
+                i
+              ) => (
                 <div
-                  key={card.label}
-                  className="rounded-xl border border-neutral-200 bg-white p-6"
+                  key={label}
+                  className={`adm-in rounded-3xl border border-slate-200/80 p-6 shadow-sm ${
+                    tone.startsWith("from")
+                      ? `bg-gradient-to-br ${tone}`
+                      : tone
+                  }`}
+                  style={{ animationDelay: `${i * 70}ms` }}
                 >
-                  <p className="text-sm font-medium text-neutral-500">
-                    {card.label}
+                  <div className="flex items-center justify-between">
+                    <p className={`text-sm font-semibold ${sub}`}>
+                      {label}
+                    </p>
+
+                    <span
+                      className={`grid h-10 w-10 place-items-center rounded-2xl ${iconBox}`}
+                    >
+                      <Icon size={18} />
+                    </span>
+                  </div>
+
+                  <p className="mt-5 text-4xl font-black tabular-nums">
+                    {value.toLocaleString()}
                   </p>
-                  <p className="mt-3 text-3xl font-black tabular-nums">
-                    {card.value.toLocaleString()}
-                  </p>
-                  <p className="mt-2 text-xs text-neutral-500">
-                    {card.description}
+
+                  <p className={`mt-2 text-xs ${sub}`}>
+                    {description}
                   </p>
                 </div>
-              ))}
+              )
+            )}
+          </section>
+
+          {/* Pipeline and revenue */}
+          <div className="mb-6 grid gap-6 lg:grid-cols-[1.3fr_1fr]">
+            {/* Pipeline */}
+            <section
+              className="adm-in rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm md:p-8"
+              style={{ animationDelay: "250ms" }}
+            >
+              <h2 className="text-lg font-black">
+                Order pipeline
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Share of all orders by stage.
+              </p>
+
+              {total === 0 ? (
+                <p className="mt-6 text-sm text-slate-500">
+                  No orders yet.
+                </p>
+              ) : (
+                <>
+                  <div
+                    className="mt-6 flex h-4 overflow-hidden rounded-full bg-slate-100"
+                    role="img"
+                    aria-label="Order pipeline breakdown"
+                  >
+                    {segments.map((s) => (
+                      <div
+                        key={s.label}
+                        className={`${s.cls} transition-all duration-1000`}
+                        style={{
+                          width: `${(s.value / total) * 100}%`,
+                        }}
+                      />
+                    ))}
+                  </div>
+
+                  <ul className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+                    {segments.map((s) => (
+                      <li key={s.label}>
+                        <p className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                          <span
+                            className={`h-2.5 w-2.5 rounded-full ${s.cls}`}
+                          />
+                          {s.label}
+                        </p>
+
+                        <p className="mt-1 text-xl font-black tabular-nums">
+                          {s.value}{" "}
+                          <span className="text-xs font-semibold text-slate-400">
+                            {Math.round(
+                              (s.value / total) * 100
+                            )}
+                            %
+                          </span>
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </section>
 
-            <section className="mb-8 rounded-xl border border-neutral-200 bg-white p-6">
-              <div className="mb-5">
-                <h2 className="text-lg font-bold">Revenue overview</h2>
-                <p className="mt-1 text-sm text-neutral-500">
-                  Revenue from paid orders only, separated by currency.
-                </p>
+            {/* Revenue */}
+            <section
+              className="adm-in rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm md:p-8"
+              style={{ animationDelay: "320ms" }}
+            >
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-2xl bg-blue-50 text-blue-700">
+                  <Wallet size={18} />
+                </span>
+
+                <div>
+                  <h2 className="text-lg font-black leading-tight">
+                    Revenue
+                  </h2>
+
+                  <p className="text-xs text-slate-500">
+                    Paid orders only, by currency
+                  </p>
+                </div>
               </div>
 
               {Object.keys(data?.revenue || {}).length === 0 ? (
-                <p className="text-sm text-neutral-500">
+                <p className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">
                   No paid revenue recorded yet.
                 </p>
               ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-6 space-y-3">
                   {Object.entries(data?.revenue || {}).map(
                     ([currency, amount]) => (
                       <div
                         key={currency}
-                        className="rounded-lg bg-neutral-50 p-5"
+                        className="rounded-2xl bg-gradient-to-br from-[#07152e] to-[#0a2a8f] p-5 text-white"
                       >
-                        <p className="text-sm font-semibold text-neutral-500">
-                          {currency} revenue
+                        <p className="text-xs font-semibold tracking-wider text-cyan-300">
+                          {currency} REVENUE
                         </p>
-                        <p className="mt-2 text-2xl font-black tabular-nums">
+
+                        <p className="mt-2 text-3xl font-black tabular-nums">
                           {formatMoney(amount, currency)}
                         </p>
                       </div>
@@ -267,83 +459,115 @@ export default function AdminDashboardPage() {
                 </div>
               )}
             </section>
+          </div>
 
-            <section className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 p-6">
-                <div>
-                  <h2 className="text-lg font-bold">Recent orders</h2>
-                  <p className="mt-1 text-sm text-neutral-500">
-                    Latest orders and their current statuses.
-                  </p>
-                </div>
+          {/* Recent Orders */}
+          <section
+            className="adm-in overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm"
+            style={{ animationDelay: "400ms" }}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-6 md:px-8">
+              <div>
+                <h2 className="text-lg font-black">
+                  Recent orders
+                </h2>
 
-                <Link
-                  href="/admin/orders"
-                  className="text-sm font-bold underline underline-offset-4"
-                >
-                  View all orders
-                </Link>
+                <p className="mt-1 text-sm text-slate-500">
+                  Latest orders and their current statuses.
+                </p>
               </div>
 
-              {!data?.recentOrders.length ? (
-                <p className="p-8 text-center text-sm text-neutral-500">
-                  No orders have been placed yet.
-                </p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[700px] text-left text-sm">
-                    <thead className="bg-neutral-50 text-xs uppercase tracking-wider text-neutral-500">
-                      <tr>
-                        <th className="px-6 py-4">Order</th>
-                        <th className="px-6 py-4">Customer</th>
-                        <th className="px-6 py-4">Date</th>
-                        <th className="px-6 py-4">Total</th>
-                        <th className="px-6 py-4">Order status</th>
-                        <th className="px-6 py-4">Payment</th>
-                      </tr>
-                    </thead>
+              <Link
+                href="/admin/orders"
+                className="flex items-center gap-1 text-xs font-bold tracking-widest text-blue-700 hover:underline"
+              >
+                VIEW ALL
+                <ArrowUpRight size={14} />
+              </Link>
+            </div>
 
-                    <tbody className="divide-y divide-neutral-100">
-                      {data.recentOrders.map((order) => (
-                        <tr key={order.id} className="hover:bg-neutral-50">
-                          <td className="px-6 py-4 font-bold">
-                            <Link
-                              href={`/admin/orders/${encodeURIComponent(order.id)}`}
-                              className="underline underline-offset-4"
-                            >
-                              {order.orderNumber}
-                            </Link>
-                          </td>
-                          <td className="px-6 py-4">{order.customerName}</td>
-                          <td className="px-6 py-4 text-neutral-500">
-                            {formatDate(order.placedAt)}
-                          </td>
-                          <td className="px-6 py-4 font-semibold">
-                            {formatMoney(order.total, order.currency)}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span
-                              className={`rounded-full px-3 py-1 text-xs font-bold capitalize ${
-                                statusStyles[order.orderStatus] ||
-                                "bg-neutral-100 text-neutral-700"
-                              }`}
-                            >
-                              {order.orderStatus}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 capitalize">
-                            {order.paymentStatus}
-                          </td>
-                        </tr>
+            {!data?.recentOrders.length ? (
+              <div className="p-12 text-center">
+                <Package
+                  size={30}
+                  strokeWidth={1.4}
+                  className="mx-auto text-slate-400"
+                />
+
+                <p className="mt-4 text-sm font-semibold">
+                  No orders yet
+                </p>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  New orders will appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] text-left text-sm">
+                  <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500">
+                    <tr>
+                      {[
+                        "Order",
+                        "Customer",
+                        "Date",
+                        "Total",
+                        "Order status",
+                        "Payment",
+                      ].map((h) => (
+                        <th
+                          key={h}
+                          className="px-6 py-4 font-bold md:first:pl-8"
+                        >
+                          {h}
+                        </th>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-          </>
-        )}
-      </div>
-    </main>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-100">
+                    {data.recentOrders.map((order) => (
+                      <tr
+                        key={order.id}
+                        className="transition hover:bg-blue-50/40"
+                      >
+                        <td className="px-6 py-4 font-bold md:pl-8">
+                          <Link
+                            href={`/admin/orders/${encodeURIComponent(order.id)}`}
+                            className="text-blue-700 hover:underline"
+                          >
+                            {order.orderNumber}
+                          </Link>
+                        </td>
+
+                        <td className="px-6 py-4 font-medium">
+                          {order.customerName}
+                        </td>
+
+                        <td className="whitespace-nowrap px-6 py-4 text-slate-500">
+                          {formatDate(order.placedAt)}
+                        </td>
+
+                        <td className="px-6 py-4 font-black tabular-nums">
+                          {formatMoney(order.total, order.currency)}
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <StatusBadge status={order.orderStatus} />
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <StatusBadge status={order.paymentStatus} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </>
+      )}
+    </AdminShell>
   );
 }

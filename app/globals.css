@@ -2,7 +2,11 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0b1e42;
+  --navy: #07152e;
+  --blue: #2563eb;
+  --cyan: #22d3ee;
+  --surface: #f1f5f9;
 }
 
 @theme inline {
@@ -12,15 +16,118 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+::selection {
+  background: #bae6fd;
+  color: #07152e;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  cursor: pointer;
+}
+
+img {
+  max-width: 100%;
+}
+
+/* VICWAV animated fashion hero */
+@keyframes vicwav-scroll-up {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+
+@keyframes vicwav-scroll-down {
+  from { transform: translateY(-50%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes vicwav-hero-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes vicwav-glow {
+  0%, 100% { opacity: 0.25; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.15); }
+}
+
+.vicwav-marquee-track {
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+}
+
+.vicwav-marquee-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-bottom: 1rem;
+}
+
+.vicwav-scroll-up {
+  animation: vicwav-scroll-up 42s linear infinite;
+}
+
+.vicwav-scroll-down {
+  animation: vicwav-scroll-down 48s linear infinite;
+}
+
+.vicwav-hero-reveal {
+  animation: vicwav-hero-reveal 1s ease-out both;
+}
+
+.vicwav-hero-glow {
+  animation: vicwav-glow 8s ease-in-out infinite;
+}
+
+.vicwav-marquee-track img {
+  display: block;
+  width: 100%;
+  height: 260px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+@media (max-width: 767px) {
+  .vicwav-marquee-track img {
+    height: 190px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vicwav-scroll-up,
+  .vicwav-scroll-down,
+  .vicwav-hero-reveal,
+  .vicwav-hero-glow {
+    animation: none !important;
+  }
+
+  .vicwav-marquee-track {
+    transform: none !important;
+  }
 }
