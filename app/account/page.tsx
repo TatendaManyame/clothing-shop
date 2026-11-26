@@ -21,6 +21,7 @@ import {
   Fingerprint,
 } from "lucide-react";
 import { account } from "@/lib/appwrite";
+import { getCustomerCartKey } from "@/lib/cart-storage";
 
 type CartItem = { productId: string; name: string; price: number; image: string; size: string; color: string; quantity: number };
 
@@ -45,7 +46,31 @@ export default function AccountPage() {
     async function loadAccount() {
       try {
         const currentUser = await account.get();
-        if (active) setUser(currentUser);
+        if (active) {
+          setUser(currentUser);
+
+          const cartKey = getCustomerCartKey(currentUser.$id);
+          const raw = localStorage.getItem(cartKey);
+          const parsed = raw ? JSON.parse(raw) : [];
+
+          if (Array.isArray(parsed)) {
+            setCart(
+              parsed.map((i) => ({
+                productId: String(i.productId ?? i.id ?? ""),
+                name: String(i.name ?? "Product"),
+                price: Number(i.price ?? 0),
+                image: String(i.image ?? ""),
+                size: String(i.size ?? ""),
+                color: String(i.color ?? ""),
+                quantity: Math.max(1, Number(i.quantity ?? 1)),
+              }))
+            );
+          }
+
+          const w = localStorage.getItem("vicwav-wishlist");
+          const wp = w ? JSON.parse(w) : [];
+          if (Array.isArray(wp)) setWishCount(wp.length);
+        }
       } catch {
         if (active) window.location.href = "/login";
       } finally {
@@ -53,29 +78,6 @@ export default function AccountPage() {
       }
     }
     loadAccount();
-
-    // local bag + wishlist snapshot
-    try {
-      const raw = localStorage.getItem("clothing-cart");
-      const parsed = raw ? JSON.parse(raw) : [];
-      if (Array.isArray(parsed)) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setCart(
-          parsed.map((i) => ({
-            productId: String(i.productId ?? i.id ?? ""),
-            name: String(i.name ?? "Product"),
-            price: Number(i.price ?? 0),
-            image: String(i.image ?? ""),
-            size: String(i.size ?? ""),
-            color: String(i.color ?? ""),
-            quantity: Math.max(1, Number(i.quantity ?? 1)),
-          }))
-        );
-      }
-      const w = localStorage.getItem("vicwav-wishlist");
-      const wp = w ? JSON.parse(w) : [];
-      if (Array.isArray(wp)) setWishCount(wp.length);
-    } catch {}
 
     return () => {
       active = false;

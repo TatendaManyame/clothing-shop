@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ShoppingBag, Minus, Plus, Check, ChevronRight, Truck, RotateCcw } from "lucide-react";
 import { getProductById, getCategories, type StoreProduct } from "@/lib/products";
+import { getCartStorageKey, notifyCartUpdated } from "@/lib/cart-storage";
 
 type CartItem = {
   productId: string;
@@ -97,12 +98,13 @@ export default function ProductDetails({ id }: ProductDetailsProps) {
   const onSale = !!product?.compare_at_price && product.compare_at_price > product.price;
   const discount = onSale ? Math.round((1 - product!.price / product!.compare_at_price!) * 100) : 0;
 
-  function addToCart() {
+  async function addToCart() {
     if (!product || soldOut) return;
     setCartError("");
 
     try {
-      const storedCart = localStorage.getItem("clothing-cart");
+      const cartKey = await getCartStorageKey();
+      const storedCart = localStorage.getItem(cartKey);
       const cart: CartItem[] = storedCart
         ? JSON.parse(storedCart).map((item: CartItem) => ({ ...item, productId: String(item.productId) }))
         : [];
@@ -129,7 +131,8 @@ export default function ProductDetails({ id }: ProductDetailsProps) {
         });
       }
 
-      localStorage.setItem("clothing-cart", JSON.stringify(cart));
+      localStorage.setItem(cartKey, JSON.stringify(cart));
+      notifyCartUpdated();
       setAdded(true);
       window.setTimeout(() => setAdded(false), 2500);
     } catch (err) {

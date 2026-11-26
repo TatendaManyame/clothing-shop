@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Models } from "appwrite";
 import { account } from "@/lib/appwrite";
+import { getCustomerCartKey, GUEST_CART_KEY } from "@/lib/cart-storage";
 
 const trust = [
   { icon: Truck, text: "Fast & Reliable Delivery" },
@@ -102,13 +103,18 @@ export default function StoreNavbar() {
   /* ---------- cart badge ---------- */
   const readCart = useCallback(() => {
     try {
-      const raw = localStorage.getItem("clothing-cart");
+      const key = user ? getCustomerCartKey(user.$id) : GUEST_CART_KEY;
+      const raw = localStorage.getItem(key);
       const parsed = raw ? JSON.parse(raw) : [];
-      setCartCount(Array.isArray(parsed) ? parsed.reduce((n: number, i: { quantity?: number }) => n + Number(i.quantity || 1), 0) : 0);
+      setCartCount(
+        Array.isArray(parsed)
+          ? parsed.reduce((n: number, i: { quantity?: number }) => n + Number(i.quantity || 1), 0)
+          : 0
+      );
     } catch {
       setCartCount(0);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect

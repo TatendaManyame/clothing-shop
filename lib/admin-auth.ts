@@ -1,3 +1,4 @@
+
 import "server-only";
 
 import { NextRequest } from "next/server";
@@ -38,6 +39,12 @@ export async function getAdminUserId(
 
     const user = await new Account(client).get();
 
+    // Only allow email-verified accounts to access admin APIs.
+    if (!user.emailVerification) {
+      return null;
+    }
+
+    // Confirm that the authenticated user is an authorized admin.
     if (!allowedAdmins.includes(user.$id)) {
       return null;
     }

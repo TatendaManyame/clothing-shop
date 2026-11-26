@@ -1,4 +1,3 @@
-
 import { connection, NextRequest, NextResponse } from "next/server";
 import { Account, Client, ID } from "node-appwrite";
 import { databaseId, tablesDB } from "@/lib/appwrite-admin";
@@ -14,6 +13,7 @@ type AuthenticatedUser = {
   $id: string;
   name?: string;
   email?: string;
+  emailVerification: boolean;
 } | null;
 
 const paymentMethods = [
@@ -78,6 +78,18 @@ export async function POST(request: NextRequest) {
           { status: 401 }
         );
       }
+
+      // Reject authenticated customers whose email is not verified.
+      if (!authenticatedUser.emailVerification) {
+        return NextResponse.json(
+          {
+            error:
+              "Please verify your email address before placing an order.",
+            code: "EMAIL_NOT_VERIFIED",
+          },
+          { status: 403 }
+        );
+      }
     }
 
     const customer = body.customer;
@@ -93,7 +105,7 @@ export async function POST(request: NextRequest) {
     const firstName = cleanString(customer.firstName, 75);
     const lastName = cleanString(customer.lastName, 75);
 
-    // Use the verified Appwrite email for authenticated customers.
+    // Use the authenticated Appwrite email for signed-in customers.
     const email =
       authenticatedUser?.email?.toLowerCase() ||
       cleanString(customer.email, 254).toLowerCase();
@@ -282,7 +294,7 @@ export async function POST(request: NextRequest) {
     const shippingFee = subtotal >= 100 ? 0 : 5;
     const total = Math.round((subtotal + shippingFee) * 100) / 100;
 
-    // Registered customers use their verified Appwrite account ID.
+    // Registered customers use their Appwrite account ID.
     // Guests receive a new customer ID.
     const customerId = authenticatedUser
       ? authenticatedUser.$id
@@ -352,7 +364,7 @@ export async function POST(request: NextRequest) {
         });
       }
     } else {
-      // Guest checkout.
+      // Guest checkout remains available.
       await tablesDB.createRow({
         databaseId,
         tableId: "customers",

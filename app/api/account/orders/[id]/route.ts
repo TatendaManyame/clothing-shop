@@ -3,6 +3,11 @@ import { connection, NextRequest, NextResponse } from "next/server";
 import { Account, AppwriteException, Client, Query } from "node-appwrite";
 import { databaseId, tablesDB } from "@/lib/appwrite-admin";
 
+type AuthenticatedUser = {
+  $id: string;
+  emailVerification: boolean;
+};
+
 type OrderRecord = {
   $id: string;
   order_number: string;
@@ -67,7 +72,7 @@ export async function GET(
       throw new Error("Appwrite authentication configuration is missing.");
     }
 
-    let user;
+    let user: AuthenticatedUser;
 
     try {
       const jwtClient = new Client()
@@ -80,6 +85,17 @@ export async function GET(
       return NextResponse.json(
         { error: "Your session is invalid or expired. Please sign in again." },
         { status: 401 }
+      );
+    }
+
+    // Only email-verified customers can access order details.
+    if (!user.emailVerification) {
+      return NextResponse.json(
+        {
+          error: "Please verify your email address to view this order.",
+          code: "EMAIL_NOT_VERIFIED",
+        },
+        { status: 403 }
       );
     }
 

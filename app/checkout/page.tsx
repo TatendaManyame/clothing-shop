@@ -3,6 +3,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { account } from "@/lib/appwrite";
+import { getCartStorageKey, notifyCartUpdated } from "@/lib/cart-storage";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -77,6 +78,7 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
 export default function CheckoutPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [cartKey, setCartKey] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("mobile-money");
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -98,28 +100,43 @@ export default function CheckoutPage() {
   });
 
   useEffect(() => {
-    try {
-      const savedCart = localStorage.getItem("clothing-cart");
-      if (savedCart) {
-        const parsed: unknown = JSON.parse(savedCart);
-        if (Array.isArray(parsed)) {
-          const normalized: CartItem[] = parsed.map((item) => ({
-            productId: String(item.productId ?? item.id ?? ""),
-            name: String(item.name ?? item.productName ?? "Product"),
-            price: Number(item.price ?? 0),
-            image: String(item.image ?? item.img ?? ""),
-            size: String(item.size ?? "Standard"),
-            color: String(item.color ?? "Default"),
-            quantity: Math.max(1, Math.min(8, Number(item.quantity ?? 1))),
-          }));
-          // eslint-disable-next-line react-hooks/set-state-in-effect
-          setCart(normalized.filter((item) => item.productId));
+    let active = true;
+
+    async function loadCart() {
+      try {
+        const key = await getCartStorageKey();
+        if (!active) return;
+
+        const savedCart = localStorage.getItem(key);
+        if (savedCart) {
+          const parsed: unknown = JSON.parse(savedCart);
+          if (Array.isArray(parsed)) {
+            const normalized: CartItem[] = parsed.map((item) => ({
+              productId: String(item.productId ?? item.id ?? ""),
+              name: String(item.name ?? item.productName ?? "Product"),
+              price: Number(item.price ?? 0),
+              image: String(item.image ?? item.img ?? ""),
+              size: String(item.size ?? "Standard"),
+              color: String(item.color ?? "Default"),
+              quantity: Math.max(1, Math.min(8, Number(item.quantity ?? 1))),
+            }));
+
+            setCart(normalized.filter((item) => item.productId));
+          }
         }
+
+        setCartKey(key);
+      } catch (error) {
+        console.error("Unable to load cart:", error);
+      } finally {
+        if (active) setLoaded(true);
       }
-    } catch (error) {
-      console.error("Unable to load cart:", error);
     }
-    setLoaded(true);
+
+    loadCart();
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Load the signed-in customer's details when available.
@@ -192,7 +209,8 @@ export default function CheckoutPage() {
       if (!response.ok) throw new Error(result.error || "Unable to place your order. Please try again.");
 
       setOrderNumber(String(result.orderNumber || ""));
-      localStorage.removeItem("clothing-cart");
+      if (cartKey) localStorage.removeItem(cartKey);
+      notifyCartUpdated();
       setSubmitted(true);
       window.scrollTo({ top: 0 });
     } catch (error) {

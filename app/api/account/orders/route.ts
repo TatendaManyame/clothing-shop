@@ -6,6 +6,7 @@ import { databaseId, tablesDB } from "@/lib/appwrite-admin";
 type AuthenticatedUser = {
   $id: string;
   email?: string;
+  emailVerification: boolean;
 } | null;
 
 type OrderRecord = {
@@ -92,6 +93,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: "Unable to verify your customer account." },
         { status: 401 }
+      );
+    }
+
+    // Reject customers who have not verified their email.
+    if (!authenticatedUser.emailVerification) {
+      return NextResponse.json(
+        {
+          error: "Please verify your email address to view your orders.",
+          code: "EMAIL_NOT_VERIFIED",
+        },
+        { status: 403 }
       );
     }
 

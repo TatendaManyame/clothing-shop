@@ -3,9 +3,21 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { useSearchParams } from "next/navigation";
+import {
+  ArrowRight,
+  Eye,
+  EyeOff,
+  LockKeyhole,
+  Mail,
+  ShieldCheck,
+} from "lucide-react";
 import { account } from "@/lib/appwrite";
 
 export default function LoginPage() {
+  const searchParams = useSearchParams();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -31,7 +43,19 @@ export default function LoginPage() {
         password,
       });
 
-      window.location.href = "/account";
+      const requestedPath = searchParams.get("next");
+
+      const redirectPath =
+        requestedPath &&
+        requestedPath.startsWith("/") &&
+        !requestedPath.startsWith("//") &&
+        !requestedPath.startsWith("/login") &&
+        !requestedPath.startsWith("/register") &&
+        !requestedPath.startsWith("/verify")
+          ? requestedPath
+          : "/account";
+
+      window.location.href = redirectPath;
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Unable to log in.";
@@ -50,94 +74,178 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-white px-5 py-12 text-neutral-900">
-      <div className="mx-auto grid min-h-[75vh] max-w-6xl overflow-hidden rounded-2xl border border-neutral-200 md:grid-cols-2">
-        <section className="hidden bg-neutral-950 p-12 text-white md:flex md:flex-col md:justify-between">
-          <Link href="/" className="text-2xl font-black tracking-[0.2em]">
-            VICWAV
+    <main className="relative isolate flex min-h-[calc(100vh-5rem)] items-center justify-center overflow-hidden bg-[#f5f8ff] px-4 py-12 sm:px-6 lg:py-16">
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute -left-40 top-10 h-96 w-96 rounded-full bg-blue-200/40 blur-[100px]" />
+        <div className="absolute -right-40 bottom-0 h-[30rem] w-[30rem] rounded-full bg-cyan-200/40 blur-[120px]" />
+        <div className="absolute inset-0 opacity-[0.025] [background-image:linear-gradient(#10234a_1px,transparent_1px),linear-gradient(90deg,#10234a_1px,transparent_1px)] [background-size:48px_48px]" />
+      </div>
+
+      <div className="mx-auto grid w-full max-w-6xl overflow-hidden rounded-[2rem] border border-white/80 bg-white shadow-[0_30px_100px_-35px_rgba(15,35,75,0.28)] lg:min-h-[680px] lg:grid-cols-[1.05fr_0.95fr]">
+        <section className="relative hidden flex-col justify-between overflow-hidden bg-[#091a38] p-12 text-white lg:flex xl:p-16">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(37,99,235,0.45),transparent_35%),radial-gradient(circle_at_90%_85%,rgba(6,182,212,0.22),transparent_35%)]" />
+
+          <div className="absolute -right-28 top-28 h-80 w-80 rounded-full border border-white/10" />
+          <div className="absolute -right-12 top-44 h-48 w-48 rounded-full border border-cyan-300/15" />
+          <div className="absolute bottom-20 left-10 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl" />
+
+          <Link
+            href="/"
+            className="relative z-10 inline-flex w-fit items-center"
+          >
+            <Image
+              src="/logo-light.png"
+              alt="VICWAV"
+              width={180}
+              height={55}
+              priority
+              className="h-12 w-auto object-contain"
+            />
           </Link>
 
-          <div>
-            <p className="mb-4 text-xs font-bold tracking-[0.3em] text-neutral-400">
-              WELCOME BACK
-            </p>
-            <h1 className="max-w-md text-5xl font-semibold leading-tight">
-              Your style. Your collection. Your account.
+          <div className="relative z-10 max-w-lg">
+            <h1 className="text-5xl font-bold leading-[1.12] tracking-tight xl:text-6xl">
+              Make your
+              <span className="block bg-gradient-to-r from-blue-300 via-cyan-300 to-white bg-clip-text text-transparent">
+                statement.
+              </span>
+              Own your style.
             </h1>
-            <p className="mt-6 max-w-sm text-sm leading-7 text-neutral-400">
-              Sign in to continue shopping and manage your orders.
+
+            <p className="mt-7 max-w-sm text-base leading-8 text-blue-100/65">
+              Your wardrobe, your favourites and your orders. Everything you
+              need to stay connected to VICWAV, all in one place.
             </p>
+
+            <div className="mt-12 flex items-center gap-4 border-t border-white/10 pt-8">
+              <div className="flex -space-x-2">
+                <div className="h-9 w-9 rounded-full border-2 border-[#091a38] bg-blue-400" />
+                <div className="h-9 w-9 rounded-full border-2 border-[#091a38] bg-cyan-400" />
+                <div className="h-9 w-9 rounded-full border-2 border-[#091a38] bg-indigo-400" />
+              </div>
+
+              <p className="text-xs leading-5 text-blue-100/60">
+                Discover your next favourite look.
+                <span className="block font-semibold text-white">
+                  Welcome to VICWAV.
+                </span>
+              </p>
+            </div>
           </div>
 
-          <p className="text-xs text-neutral-500">
+          <p className="relative z-10 text-xs text-blue-100/40">
             © 2026 VICWAV. All rights reserved.
           </p>
         </section>
 
-        <section className="flex items-center justify-center p-6 py-12 sm:p-12">
+        <section className="flex items-center justify-center px-6 py-12 sm:px-12 lg:px-14 xl:px-20">
           <div className="w-full max-w-md">
             <Link
               href="/"
-              className="text-xl font-black tracking-[0.2em] md:hidden"
+              className="mb-12 inline-flex items-center lg:hidden"
             >
-              VICWAV
+              <Image
+                src="/logo.png"
+                alt="VICWAV"
+                width={160}
+                height={50}
+                priority
+                className="h-10 w-auto object-contain"
+              />
             </Link>
 
-            <div className="mb-8 mt-8 md:mt-0">
-              <p className="mb-3 text-xs font-bold tracking-[0.25em] text-neutral-500">
-                CUSTOMER LOGIN
+            <div className="mb-9">
+              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700 ring-1 ring-blue-100">
+                <LockKeyhole size={22} />
+              </div>
+
+              <p className="mb-3 text-xs font-bold tracking-[0.22em] text-blue-600">
+                CUSTOMER ACCOUNT
               </p>
-              <h2 className="text-3xl font-semibold">Welcome back</h2>
-              <p className="mt-2 text-sm text-neutral-500">
-                Enter your account details to continue.
+
+              <h2 className="text-3xl font-bold tracking-tight text-[#10234a] sm:text-4xl">
+                Welcome back.
+              </h2>
+
+              <p className="mt-3 text-sm leading-7 text-slate-500">
+                Sign in to access your account and continue where you left off.
               </p>
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-5">
+            <form onSubmit={handleLogin} className="space-y-6">
               <div>
-                <label className="mb-2 block text-sm font-medium">
+                <label
+                  htmlFor="email"
+                  className="mb-2 block text-sm font-semibold text-[#10234a]"
+                >
                   Email address
                 </label>
-                <input
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="you@example.com"
-                  required
-                  className="w-full rounded-lg border border-neutral-300 px-4 py-3 text-sm outline-none transition focus:border-black"
-                />
+
+                <div className="group relative">
+                  <Mail
+                    size={18}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition group-focus-within:text-blue-600"
+                  />
+
+                  <input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="you@example.com"
+                    required
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/70 py-4 pl-12 pr-4 text-sm text-[#10234a] outline-none transition duration-200 placeholder:text-slate-400 hover:border-blue-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                  />
+                </div>
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium">
+                <label
+                  htmlFor="password"
+                  className="mb-2 block text-sm font-semibold text-[#10234a]"
+                >
                   Password
                 </label>
-                <input
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Enter your password"
-                  required
-                  className="w-full rounded-lg border border-neutral-300 px-4 py-3 text-sm outline-none transition focus:border-black"
-                />
-              </div>
 
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-neutral-600">
-                <input
-                  type="checkbox"
-                  checked={showPassword}
-                  onChange={(event) => setShowPassword(event.target.checked)}
-                  className="h-4 w-4 accent-black"
-                />
-                Show password
-              </label>
+                <div className="group relative">
+                  <LockKeyhole
+                    size={18}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition group-focus-within:text-blue-600"
+                  />
+
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="Enter your password"
+                    required
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/70 py-4 pl-12 pr-12 text-sm text-[#10234a] outline-none transition duration-200 placeholder:text-slate-400 hover:border-blue-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-blue-700"
+                  >
+                    {showPassword ? (
+                      <EyeOff size={18} />
+                    ) : (
+                      <Eye size={18} />
+                    )}
+                  </button>
+                </div>
+              </div>
 
               {error && (
                 <div
                   role="alert"
-                  className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+                  className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700"
                 >
                   {error}
                 </div>
@@ -146,21 +254,38 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-lg bg-black px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="group flex w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-600 px-5 py-4 text-sm font-bold tracking-wide text-white shadow-lg shadow-blue-900/20 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-blue-900/25 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
               >
-                {loading ? "SIGNING IN..." : "SIGN IN"}
+                {loading ? "SIGNING IN..." : "SIGN IN TO YOUR ACCOUNT"}
+
+                {!loading && (
+                  <ArrowRight
+                    size={18}
+                    className="transition-transform duration-300 group-hover:translate-x-1"
+                  />
+                )}
               </button>
             </form>
 
-            <p className="mt-7 text-center text-sm text-neutral-600">
-              Don&apos;t have an account?{" "}
-              <Link
-                href="/register"
-                className="font-semibold text-black underline underline-offset-4"
-              >
-                Create account
-              </Link>
-            </p>
+            <div className="my-8 flex items-center gap-4">
+              <div className="h-px flex-1 bg-slate-100" />
+              <span className="text-[10px] font-bold tracking-[0.18em] text-slate-400">
+                NEW TO VICWAV?
+              </span>
+              <div className="h-px flex-1 bg-slate-100" />
+            </div>
+
+            <Link
+              href="/register"
+              className="flex w-full items-center justify-center rounded-xl border border-blue-100 bg-blue-50/50 px-5 py-4 text-sm font-bold text-blue-800 transition duration-200 hover:border-blue-200 hover:bg-blue-50"
+            >
+              Create your account
+            </Link>
+
+            <div className="mt-9 flex items-center justify-center gap-2 text-xs text-slate-400">
+              <ShieldCheck size={15} className="text-emerald-600" />
+              Your account is protected with secure sign-in.
+            </div>
           </div>
         </section>
       </div>
