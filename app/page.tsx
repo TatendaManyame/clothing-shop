@@ -1,4 +1,3 @@
-
 "use client";
 /* eslint-disable @next/next/no-html-link-for-pages, @next/next/no-img-element */
 
@@ -191,53 +190,6 @@ function CountUp({
       {n.toLocaleString()}
       {suffix}
     </span>
-  );
-}
-
-/** Small hero card that cycles through the looks. */
-function LookCard({
-  start,
-  className = "",
-}: {
-  start: number;
-  className?: string;
-}) {
-  const [i, setI] = useState(start);
-
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      return;
-    }
-
-    const id = setInterval(() => {
-      setI((n) => (n + 1) % looks.length);
-    }, 3600);
-
-    return () => clearInterval(id);
-  }, []);
-
-  return (
-    <a
-      href="/shop"
-      className={`block rounded-3xl border border-white/20 bg-white/10 p-2 shadow-2xl shadow-black/40 backdrop-blur-xl ${className}`}
-    >
-      <span className="relative block aspect-[4/5] overflow-hidden rounded-2xl">
-        {looks.map((l, n) => (
-          <img
-            key={l.src}
-            src={l.src}
-            alt=""
-            className={`absolute inset-0 h-full w-full object-cover transition duration-1000 ${
-              n === i ? "scale-100 opacity-100" : "scale-125 opacity-0"
-            }`}
-          />
-        ))}
-      </span>
-
-      <span className="block truncate px-1 pb-1 pt-2 text-[10px] font-bold uppercase tracking-widest text-white/90">
-        {looks[i].short}
-      </span>
-    </a>
   );
 }
 
@@ -537,7 +489,7 @@ export default function Home() {
             {/* Contact shadow */}
             <div className="vw-shadow absolute bottom-[3%] left-1/4 h-[5%] w-1/2 rounded-[50%] bg-black/70 blur-xl" />
 
-            {/* Hoodie - floating animation removed */}
+            {/* Hoodie */}
             <div
               className="vw-depth absolute inset-x-[5%] top-[2%] z-10"
               style={{ "--d": "26px" } as CSSProperties}
@@ -553,24 +505,6 @@ export default function Home() {
                     className="h-auto w-full drop-shadow-[0_35px_35px_rgba(0,0,0,0.45)]"
                   />
                 </div>
-              </div>
-            </div>
-
-            <div
-              className="vw-depth absolute -left-2 top-[7%] z-20 w-[24%] md:-left-6"
-              style={{ "--d": "48px" } as CSSProperties}
-            >
-              <div className="vw-popout" style={{ animationDelay: "1100ms" }}>
-                <LookCard start={0} className="vw-bob -rotate-6" />
-              </div>
-            </div>
-
-            <div
-              className="vw-depth absolute -right-2 bottom-[7%] z-20 w-[27%] md:-right-6"
-              style={{ "--d": "62px" } as CSSProperties}
-            >
-              <div className="vw-popout" style={{ animationDelay: "1350ms" }}>
-                <LookCard start={1} className="vw-bob vw-bob-late rotate-6" />
               </div>
             </div>
           </div>
@@ -1050,7 +984,9 @@ const css = `
 
 .vw-depth{transform:translate3d(calc(var(--px,0) * var(--d,0px)),calc(var(--py,0) * var(--d,0px) * .6),0);transition:transform .35s ease-out}
 
-.vw-giant{color:transparent;background:linear-gradient(to bottom,rgba(255,255,255,.14),rgba(255,255,255,.01));-webkit-background-clip:text;background-clip:text}
+.vw-giant{color:transparent;-webkit-text-stroke:1.5px rgba(125,211,252,.3);background:linear-gradient(100deg,transparent 30%,rgba(103,232,249,.55) 50%,transparent 70%) 0 0/250% 100% no-repeat;-webkit-background-clip:text;background-clip:text;animation:vw-giant-sweep 7s linear infinite}
+@keyframes vw-giant-sweep{from{background-position:150% 0}to{background-position:-150% 0}}
+@media (prefers-reduced-motion:reduce){.vw-giant{animation:none}}
 
 .vw-stage{perspective:1000px}
 
@@ -1070,10 +1006,6 @@ const css = `
 
 .vw-shadow{animation:vw-shadow 5s ease-in-out infinite}
 @keyframes vw-shadow{50%{transform:scale(.78);opacity:.5}}
-
-.vw-bob{animation:vw-bob 6s ease-in-out infinite}
-.vw-bob-late{animation-delay:-3s}
-@keyframes vw-bob{50%{translate:0 -12px}}
 
 .vw-strip{mask-image:linear-gradient(to right,transparent,#000 8%,#000 92%,transparent)}
 .vw-strip:hover .vw-ticker{animation-play-state:paused}

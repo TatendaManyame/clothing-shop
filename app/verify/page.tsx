@@ -1,213 +1,484 @@
-
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { account } from "@/lib/appwrite";
+import { useSearchParams } from "next/navigation";
 import {
-  CheckCircle2,
-  Mail,
-  ShieldCheck,
   AlertCircle,
-  RefreshCw,
   ArrowRight,
+  CheckCircle2,
+  LinkIcon,
+  MailCheck,
+  RefreshCw,
+  ShieldCheck,
 } from "lucide-react";
+import { account } from "@/lib/appwrite";
+import AuthShell from "@/components/auth-shell";
 
-export default function VerifyPage() {
-  const [loading, setLoading] = useState(true);
-  const [verified, setVerified] = useState(false);
-  const [message, setMessage] = useState("");
+type Status =
+  | "loading"
+  | "verified"
+  | "already"
+  | "pending"
+  | "invalid"
+  | "signedout";
+
+const RESEND_SECONDS = 30;
+
+/** Only allow redirects to pages on this site (never off-site, never auth pages). */
+function safePath(path: string | null) {
+  if (
+    !path ||
+    !path.startsWith("/") ||
+    path.startsWith("//") ||
+    path.startsWith("/\\") ||
+    path.startsWith("/login") ||
+    path.startsWith("/register") ||
+    path.startsWith("/verify")
+  ) {
+    return null;
+  }
+  return path;
+}
+
+const primaryBtn =
+  "au-btn group flex w-full items-center justify-center gap-3 rounded-full bg-[#07152e] px-5 py-4 text-xs font-bold tracking-[0.18em] text-white shadow-lg shadow-blue-950/20 transition duration-300 hover:text-[#07152e] disabled:cursor-not-allowed disabled:opacity-60";
+
+const outlineBtn =
+  "flex w-full items-center justify-center gap-3 rounded-full border border-slate-200 px-5 py-4 text-xs font-bold tracking-[0.18em] text-[#07152e] transition duration-200 hover:border-[#07152e] hover:bg-[#07152e] hover:text-white disabled:cursor-not-allowed disabled:opacity-60";
+
+function VerifyView() {
+  const searchParams = useSearchParams();
+
+  // Appwrite adds userId and secret to the link in the verification email.
+  const userId = searchParams.get("userId");
+  const secret = searchParams.get("secret");
+  const sentParam = searchParams.get("sent") === "1";
+  const sendError = searchParams.get("sendError") === "1";
+  const next = safePath(searchParams.get("next"));
+  const continueHref = next ?? "/account";
+
+  const [status, setStatus] = useState<Status>("loading");
+  const [signedIn, setSignedIn] = useState(false);
+  const [email, setEmail] = useState("");
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
   const [resending, setResending] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  // Guards against React Strict Mode running the effect twice. A verification
+  // secret works only once, so a second call would wrongly show an error.
+  const ran = useRef(false);
 
   useEffect(() => {
-    async function verifyEmail() {
-      const params = new URLSearchParams(window.location.search);
+    if (ran.current) return;
+    ran.current = true;
 
-      const userId = params.get("userId");
-      const secret = params.get("secret");
-      const sentParam = params.get("sent");
-      const sendError = params.get("sendError");
+    (async () => {
+      // 1. Arrived from the email link: confirm the address.
+      if (userId && secret) {
+        try {
+          await account.updateVerification({ userId, secret });
+          setStatus("verified");
+        } catch {
+          setStatus("invalid");
+        }
 
-      if (sentParam === "1") {
-        setSent(true);
-      }
+        try {
+          await account.get();
+          setSignedIn(true);
+        } catch {}
 
-      if (sendError === "1") {
-        setMessage(
-          "Your account was created, but the verification email could not be sent. Please try resending it."
-        );
-      }
-
-      if (!userId || !secret) {
-        setLoading(false);
         return;
       }
 
+      // 2. Arrived without a link: find out where this person stands.
       try {
-        await account.updateVerification({
-          userId,
-          secret,
-        });
+        const user = await account.get();
 
-        setVerified(true);
-        setMessage("Your email address has been successfully verified.");
-      } catch (error) {
-        setMessage(
-          error instanceof Error
-            ? error.message
-            : "This verification link is invalid or has expired."
-        );
-      } finally {
-        setLoading(false);
+        setSignedIn(true);
+        setEmail(user.email);
+
+        if (user.emailVerification) {
+          setStatus("already");
+          return;
+        }
+
+        setStatus("pending");
+
+        if (sendError) {
+          setError(
+            "Your account was created, but we couldn't send the verification email. Please try resending it."
+          );
+        } else if (sentParam) {
+          setCooldown(RESEND_SECONDS);
+        }
+      } catch {
+        setStatus("signedout");
       }
-    }
+    })();
+  }, [userId, secret, sendError, sentParam]);
 
-    verifyEmail();
-  }, []);
+  // resend countdown
+  useEffect(() => {
+    if (cooldown <= 0) return;
 
-  async function resendVerification() {
+    const id = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(id);
+  }, [cooldown]);
+
+  async function resend() {
     setResending(true);
-    setMessage("");
+    setError("");
+    setNotice("");
 
     try {
       await account.createVerification({
-        url: `${window.location.origin}/verify`,
+        url: `${window.location.origin}/verify${
+          next ? `?next=${encodeURIComponent(next)}` : ""
+        }`,
       });
 
-      setSent(true);
-      setMessage(
-        "A new verification email has been sent. Please check your inbox."
-      );
-    } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "Unable to resend the verification email. Please sign in again."
-      );
+      // After a bad link the page shows the "invalid" view; move to the
+      // normal waiting view now that a fresh email is on its way.
+      setStatus("pending");
+      setNotice("A new verification email is on its way.");
+      setCooldown(RESEND_SECONDS);
+    } catch (err: unknown) {
+      const e = err as { code?: number; message?: string } | null;
+      const msg = (e?.message ?? "").toLowerCase();
+
+      if (e?.code === 429 || msg.includes("rate limit")) {
+        setError("Too many requests. Please wait a minute and try again.");
+      } else if (e?.code === 401) {
+        setStatus("signedout");
+      } else if (msg.includes("failed to fetch") || msg.includes("network")) {
+        setError(
+          "We can't reach the server. Check your connection and try again."
+        );
+      } else {
+        setError(e?.message || "Unable to send the verification email.");
+      }
     } finally {
       setResending(false);
     }
   }
 
+  // For people who verified in another tab or on their phone.
+  async function checkAgain() {
+    setChecking(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const user = await account.get();
+
+      if (user.emailVerification) {
+        setStatus("verified");
+      } else {
+        setNotice(
+          "Not verified yet. Open the link in the email, then try again."
+        );
+      }
+    } catch {
+      setStatus("signedout");
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  const resendLabel = resending
+    ? "SENDING..."
+    : cooldown > 0
+      ? `RESEND IN ${cooldown}S`
+      : "RESEND EMAIL";
+
+  const alert = error && (
+    <div
+      role="alert"
+      className="mt-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-left text-sm leading-6 text-red-700"
+    >
+      <AlertCircle size={18} className="mt-1 shrink-0" />
+      <span>{error}</span>
+    </div>
+  );
+
+  const info = notice && (
+    <div
+      role="status"
+      className="mt-6 flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-left text-sm leading-6 text-blue-800"
+    >
+      <MailCheck size={18} className="mt-1 shrink-0" />
+      <span>{notice}</span>
+    </div>
+  );
+
   return (
-    <main className="relative flex min-h-[calc(100vh-5rem)] items-center justify-center overflow-hidden bg-[#f5f8ff] px-4 py-16">
-      {/* Background decoration */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-40 top-10 h-96 w-96 rounded-full bg-blue-200/40 blur-[100px]" />
-        <div className="absolute -right-40 bottom-0 h-[30rem] w-[30rem] rounded-full bg-cyan-200/40 blur-[120px]" />
-      </div>
+    <AuthShell
+      eyebrow="ONE QUICK STEP"
+      headline={
+        <>
+          Confirm your
+          <span className="block bg-gradient-to-r from-blue-300 via-cyan-300 to-white bg-clip-text text-transparent">
+            email.
+          </span>
+        </>
+      }
+      text="We only ask once, when you join. After that you can sign in anytime."
+      points={[
+        "Order updates sent to the right inbox",
+        "Easier account recovery",
+        "Takes a few seconds",
+      ]}
+    >
+      {status === "loading" && (
+        <div role="status">
+          <div className="mb-6 grid h-14 w-14 place-items-center rounded-2xl bg-blue-50 text-blue-700 ring-1 ring-blue-100">
+            <RefreshCw size={24} className="animate-spin" />
+          </div>
 
-      <div className="relative w-full max-w-lg rounded-[2rem] border border-white bg-white p-8 text-center shadow-[0_30px_100px_-35px_rgba(15,35,75,0.25)] sm:p-12">
-        {/* Icon */}
-        <div className="mx-auto mb-7 flex h-20 w-20 items-center justify-center rounded-3xl bg-blue-50 text-blue-700 ring-1 ring-blue-100">
-          {loading ? (
-            <RefreshCw size={34} className="animate-spin" />
-          ) : verified ? (
-            <CheckCircle2 size={38} className="text-emerald-600" />
-          ) : (
-            <Mail size={36} />
-          )}
+          <h2 className="text-3xl font-black tracking-tight text-[#07152e] sm:text-4xl">
+            One moment.
+          </h2>
+
+          <p className="mt-3 text-sm leading-7 text-slate-500">
+            We&rsquo;re checking your email address.
+          </p>
         </div>
+      )}
 
-        {loading ? (
-          <>
-            <h1 className="text-3xl font-bold tracking-tight text-[#10234a]">
-              Verifying your email
-            </h1>
+      {status === "verified" && (
+        <div role="status">
+          <div className="mb-6 grid h-14 w-14 place-items-center rounded-2xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+            <CheckCircle2 size={26} />
+          </div>
 
-            <p className="mt-4 text-sm leading-7 text-slate-500">
-              Please wait while we confirm your email address.
-            </p>
-          </>
-        ) : verified ? (
-          <>
-            <p className="mb-3 text-xs font-bold tracking-[0.2em] text-emerald-600">
-              EMAIL VERIFIED
-            </p>
+          <p className="mb-3 text-[11px] font-bold tracking-[0.25em] text-emerald-600">
+            EMAIL VERIFIED
+          </p>
 
-            <h1 className="text-3xl font-bold tracking-tight text-[#10234a]">
-              You&apos;re all set!
-            </h1>
+          <h2 className="text-3xl font-black tracking-tight text-[#07152e] sm:text-4xl">
+            You&rsquo;re all set!
+          </h2>
 
-            <p className="mt-4 text-sm leading-7 text-slate-500">
-              {message}
-            </p>
+          <p className="mt-3 text-sm leading-7 text-slate-500">
+            Your email address has been confirmed. Welcome to VICWAV.
+          </p>
 
-            <Link
-              href="/account"
-              className="mt-8 flex w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-600 px-5 py-4 text-sm font-bold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5"
-            >
-              Continue to your account
-              <ArrowRight size={18} />
-            </Link>
-          </>
-        ) : (
-          <>
-            <p className="mb-3 text-xs font-bold tracking-[0.2em] text-blue-600">
-              VICWAV ACCOUNT SECURITY
-            </p>
+          <Link
+            href={signedIn ? continueHref : "/login"}
+            className={`${primaryBtn} mt-8`}
+          >
+            {signedIn ? "CONTINUE" : "SIGN IN TO CONTINUE"}
+            <ArrowRight
+              size={17}
+              className="transition-transform duration-300 group-hover:translate-x-1"
+            />
+          </Link>
+        </div>
+      )}
 
-            <h1 className="text-3xl font-bold tracking-tight text-[#10234a]">
-              Check your inbox.
-            </h1>
+      {status === "already" && (
+        <div role="status">
+          <div className="mb-6 grid h-14 w-14 place-items-center rounded-2xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+            <ShieldCheck size={26} />
+          </div>
 
-            <p className="mt-4 text-sm leading-7 text-slate-500">
-              {sent
-                ? "We've sent you an email verification link. Open the email and click the link to verify your account."
-                : "Your email address has not been verified yet. Request a verification email to continue."}
-            </p>
+          <p className="mb-3 text-[11px] font-bold tracking-[0.25em] text-emerald-600">
+            ALREADY VERIFIED
+          </p>
 
-            {message && (
-              <div
-                role="alert"
-                className="mt-6 flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-left text-sm leading-6 text-blue-800"
-              >
-                <AlertCircle size={18} className="mt-1 shrink-0" />
-                <span>{message}</span>
-              </div>
+          <h2 className="text-3xl font-black tracking-tight text-[#07152e] sm:text-4xl">
+            You&rsquo;re verified.
+          </h2>
+
+          <p className="mt-3 text-sm leading-7 text-slate-500">
+            Your email is already confirmed, so there&rsquo;s nothing more to
+            do here.
+          </p>
+
+          <Link href={continueHref} className={`${primaryBtn} mt-8`}>
+            CONTINUE
+            <ArrowRight
+              size={17}
+              className="transition-transform duration-300 group-hover:translate-x-1"
+            />
+          </Link>
+        </div>
+      )}
+
+      {status === "pending" && (
+        <div>
+          <div className="mb-6 grid h-14 w-14 place-items-center rounded-2xl bg-blue-50 text-blue-700 ring-1 ring-blue-100">
+            <MailCheck size={26} />
+          </div>
+
+          <p className="mb-3 text-[11px] font-bold tracking-[0.25em] text-blue-600">
+            VERIFY YOUR EMAIL
+          </p>
+
+          <h2 className="text-3xl font-black tracking-tight text-[#07152e] sm:text-4xl">
+            Check your inbox.
+          </h2>
+
+          <p className="mt-3 break-words text-sm leading-7 text-slate-500">
+            {sentParam || notice ? (
+              <>
+                We&rsquo;ve sent a verification link
+                {email && (
+                  <>
+                    {" "}
+                    to{" "}
+                    <span className="font-semibold text-[#07152e]">
+                      {email}
+                    </span>
+                  </>
+                )}
+                . Open the email and tap the link. Check your spam or junk
+                folder if you can&rsquo;t find it.
+              </>
+            ) : (
+              <>
+                Your email hasn&rsquo;t been verified yet. Send yourself a
+                verification email and tap the link inside.
+              </>
             )}
+          </p>
 
-            <div className="mt-8 rounded-2xl border border-slate-100 bg-slate-50 p-5 text-left">
-              <div className="flex items-start gap-3">
-                <ShieldCheck
-                  size={20}
-                  className="mt-0.5 shrink-0 text-blue-700"
+          {alert}
+          {info}
+
+          <div className="mt-8 space-y-3">
+            <button
+              type="button"
+              onClick={checkAgain}
+              disabled={checking}
+              className={primaryBtn}
+            >
+              {checking ? "CHECKING..." : "I'VE VERIFIED MY EMAIL"}
+              {!checking && (
+                <CheckCircle2
+                  size={17}
+                  className="transition-transform duration-300 group-hover:scale-110"
                 />
-
-                <div>
-                  <p className="text-sm font-bold text-[#10234a]">
-                    One quick step remaining
-                  </p>
-
-                  <p className="mt-1 text-xs leading-6 text-slate-500">
-                    Check your spam or junk folder if the email is not in your
-                    inbox.
-                  </p>
-                </div>
-              </div>
-            </div>
+              )}
+            </button>
 
             <button
               type="button"
-              onClick={resendVerification}
-              disabled={resending}
-              className="mt-7 flex w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-600 px-5 py-4 text-sm font-bold text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={resend}
+              disabled={resending || cooldown > 0}
+              className={outlineBtn}
             >
-              {resending ? "SENDING EMAIL..." : "RESEND VERIFICATION EMAIL"}
-
-              {!resending && <RefreshCw size={17} />}
+              {resendLabel}
+              {!resending && cooldown <= 0 && <RefreshCw size={15} />}
             </button>
+          </div>
 
-            <Link
-              href="/login"
-              className="mt-6 inline-flex text-sm font-semibold text-blue-700 transition hover:text-cyan-700"
+          <Link
+            href={continueHref}
+            className="mt-6 flex items-center justify-center text-xs font-bold tracking-[0.18em] text-slate-500 transition hover:text-blue-700"
+          >
+            SKIP FOR NOW
+          </Link>
+        </div>
+      )}
+
+      {status === "invalid" && (
+        <div role="alert">
+          <div className="mb-6 grid h-14 w-14 place-items-center rounded-2xl bg-amber-50 text-amber-600 ring-1 ring-amber-100">
+            <LinkIcon size={26} />
+          </div>
+
+          <p className="mb-3 text-[11px] font-bold tracking-[0.25em] text-blue-600">
+            LINK PROBLEM
+          </p>
+
+          <h2 className="text-3xl font-black tracking-tight text-[#07152e] sm:text-4xl">
+            This link isn&rsquo;t valid.
+          </h2>
+
+          <p className="mt-3 text-sm leading-7 text-slate-500">
+            It may have expired or already been used.{" "}
+            {signedIn
+              ? "We can send you a fresh one."
+              : "Sign in and we can send you a fresh one."}
+          </p>
+
+          {alert}
+
+          {signedIn ? (
+            <button
+              type="button"
+              onClick={resend}
+              disabled={resending}
+              className={`${primaryBtn} mt-8`}
             >
-              Back to sign in
+              {resending ? "SENDING..." : "SEND A NEW LINK"}
+              {!resending && <RefreshCw size={16} />}
+            </button>
+          ) : (
+            <Link href="/login" className={`${primaryBtn} mt-8`}>
+              SIGN IN
+              <ArrowRight
+                size={17}
+                className="transition-transform duration-300 group-hover:translate-x-1"
+              />
             </Link>
-          </>
-        )}
+          )}
+        </div>
+      )}
+
+      {status === "signedout" && (
+        <div>
+          <div className="mb-6 grid h-14 w-14 place-items-center rounded-2xl bg-blue-50 text-blue-700 ring-1 ring-blue-100">
+            <ShieldCheck size={26} />
+          </div>
+
+          <p className="mb-3 text-[11px] font-bold tracking-[0.25em] text-blue-600">
+            VERIFY YOUR EMAIL
+          </p>
+
+          <h2 className="text-3xl font-black tracking-tight text-[#07152e] sm:text-4xl">
+            Sign in first.
+          </h2>
+
+          <p className="mt-3 text-sm leading-7 text-slate-500">
+            Sign in to your account and we can send you a new verification
+            email. If you already have a link in your inbox, just open it.
+          </p>
+
+          <Link href="/login" className={`${primaryBtn} mt-8`}>
+            SIGN IN
+            <ArrowRight
+              size={17}
+              className="transition-transform duration-300 group-hover:translate-x-1"
+            />
+          </Link>
+
+          <Link
+            href="/register"
+            className={`${outlineBtn} mt-3`}
+          >
+            CREATE AN ACCOUNT
+          </Link>
+        </div>
+      )}
+
+      <div className="mt-8 flex items-center justify-center gap-2 text-xs text-slate-400">
+        <ShieldCheck size={15} className="text-emerald-600" />
+        Your information is protected with secure sign-in.
       </div>
-    </main>
+    </AuthShell>
+  );
+}
+
+// useSearchParams must sit inside a Suspense boundary or `next build` fails.
+export default function VerifyPage() {
+  return (
+    <Suspense fallback={null}>
+      <VerifyView />
+    </Suspense>
   );
 }

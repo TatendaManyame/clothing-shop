@@ -109,7 +109,7 @@ export default function AccountPage() {
     return (
       <main className="min-h-screen bg-[#f6f8fc]">
         <div className="h-72 animate-pulse bg-[#07152e]" />
-        <div className="mx-auto -mt-16 grid max-w-6xl animate-pulse gap-5 px-5 md:grid-cols-3 md:px-10">
+        <div className="mx-auto mt-6 grid max-w-6xl animate-pulse gap-5 px-5 md:-mt-16 md:grid-cols-3 md:px-10">
           <div className="h-32 rounded-3xl bg-slate-200" />
           <div className="h-32 rounded-3xl bg-slate-200" />
           <div className="h-32 rounded-3xl bg-slate-200" />
@@ -146,15 +146,15 @@ export default function AccountPage() {
         <div className="vwa-glow pointer-events-none absolute -left-24 top-0 h-80 w-80 rounded-full bg-blue-600/40 blur-[110px]" />
         <div className="pointer-events-none absolute -right-20 bottom-0 h-80 w-80 rounded-full bg-cyan-400/15 blur-[110px]" />
         <img src="/logo-light.png" alt="" aria-hidden="true" className="pointer-events-none absolute -right-10 top-1/2 hidden h-[130%] w-auto -translate-y-1/2 opacity-[0.05] md:block" />
-        <svg aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-24 w-full" viewBox="0 0 1440 96" preserveAspectRatio="none">
+        <svg aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-10 w-full md:h-24" viewBox="0 0 1440 96" preserveAspectRatio="none">
           <path d="M0 64 C 240 20 480 100 720 64 C 960 28 1200 90 1440 48 L1440 96 L0 96 Z" fill="#f6f8fc" />
         </svg>
 
-        <div className="relative mx-auto max-w-6xl px-5 pb-28 pt-14 md:px-10 md:pb-32 md:pt-20">
+        <div className="relative mx-auto max-w-6xl px-5 pb-20 pt-20 md:px-10 md:pb-32 md:pt-20">
           <div className="vwa-in flex flex-col gap-7 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-5 md:gap-7">
-              <div className="relative">
-                <span className="grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 text-2xl font-black text-white shadow-2xl shadow-blue-900/50 ring-4 ring-white/10 md:h-24 md:w-24 md:text-3xl">{initials}</span>
+            <div className="flex items-center gap-4 md:gap-7">
+              <div className="relative shrink-0">
+                <span className="grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 text-xl font-black text-white shadow-2xl shadow-blue-900/50 ring-4 ring-white/10 md:h-24 md:w-24 md:text-3xl">{initials}</span>
                 {user.emailVerification && (
                   <span className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full bg-emerald-500 ring-4 ring-[#07152e]" title="Email verified">
                     <Check size={14} strokeWidth={3} />
@@ -162,16 +162,16 @@ export default function AccountPage() {
                 )}
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs font-semibold tracking-[0.25em] text-cyan-300">MY ACCOUNT</p>
-                <h1 className="mt-2 text-3xl font-black tracking-tight md:text-5xl">
+                <h1 className="mt-2 break-words text-3xl font-black tracking-tight md:text-5xl">
                   {greeting()}, {firstName}.
                 </h1>
                 <p className="mt-2 text-sm text-blue-100/80">Member since {memberSince}</p>
               </div>
             </div>
 
-            <Link href="/shop" className="group inline-flex w-fit items-center gap-3 rounded-full bg-white px-7 py-4 text-xs font-bold tracking-[0.15em] text-[#07152e] shadow-xl shadow-black/20 transition hover:-translate-y-1 hover:bg-cyan-300">
+            <Link href="/shop" className="group inline-flex w-full items-center justify-center gap-3 rounded-full bg-white px-7 py-4 text-xs font-bold tracking-[0.15em] text-[#07152e] shadow-xl shadow-black/20 transition hover:-translate-y-1 hover:bg-cyan-300 md:w-fit">
               CONTINUE SHOPPING
               <ArrowRight size={16} className="transition group-hover:translate-x-1" />
             </Link>
@@ -179,7 +179,7 @@ export default function AccountPage() {
         </div>
       </section>
 
-      <div className="mx-auto -mt-12 max-w-6xl px-5 md:px-10">
+      <div className="mx-auto mt-6 max-w-6xl px-5 md:-mt-12 md:px-10">
         {/* ===== stats ===== */}
         <div className="vwa-in grid gap-4 sm:grid-cols-3" style={{ animationDelay: "120ms" }}>
           {[
